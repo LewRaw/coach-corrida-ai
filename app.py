@@ -9,7 +9,7 @@ import io
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any, List
 
 import gspread
@@ -240,7 +240,7 @@ class TreinoExtracao(BaseModel):
 
 class TreinoDiarioPrescrito(BaseModel):
     dia_semana: str = Field(description="Dia da semana (ex: Segunda-feira, Terça-feira, Quarta-feira, Quinta-feira, Sexta-feira, Sábado, Domingo)")
-    data_prevista: str = Field(description="Data sugerida no formato DD/MM/AAAA para a sessão considerando a semana atual ou seguinte")
+    data_prevista: str = Field(description="Data futura obrigatória no formato DD/MM/AAAA para a sessão no ano de 2026")
     tipo_treino: str = Field(description="Ex: Rodagem Z2, Tiros de VO2 (Intervalado), Tempo Run (Ritmo), Descanso Ativo, Longão Progressivo")
     distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5; informe 0.0 caso seja dia de descanso)")
     duracao_min: float = Field(description="Duração estimada em minutos (ex: 45.0; 0.0 caso descanso)")
@@ -587,6 +587,25 @@ def mark_workout_as_completed(workout_id: str) -> Tuple[bool, str]:
         return False, f"Erro ao marcar treino: {str(e)}"
 
 
+def clear_cronograma_in_sheets() -> Tuple[bool, str]:
+    """Limpa todas as sessões da aba 'Cronograma' mantendo a linha de cabeçalho."""
+    sheet_url = get_secret_val("sheet_url")
+    if not sheet_url:
+        return False, "Google Sheets não configurado."
+
+    try:
+        ws = get_cached_worksheet(sheet_url, "Cronograma")
+        if not ws:
+            return False, "Não foi possível abrir a aba 'Cronograma'."
+
+        run_with_retry(lambda: ws.clear())
+        run_with_retry(lambda: ws.append_row(CRONOGRAMA_COLUMNS))
+        st.cache_data.clear()
+        return True, "Cronograma limpo com sucesso! Todas as sessões antigas foram removidas."
+    except Exception as e:
+        return False, f"Erro ao limpar cronograma: {str(e)}"
+
+
 def format_athlete_history_for_prompt(df: Optional[pd.DataFrame]) -> str:
     """Gera um prontuário textual estruturado dos treinos do atleta para alimentar os prompts."""
     if df is None or df.empty:
@@ -866,12 +885,24 @@ with tab_cronograma:
     st.markdown("### 📅 Cronograma de Treinos & Sessão do Dia")
     st.write("Acompanhe o que está agendado na sua planilha, marque os treinos concluídos com 1 clique e monitore sua taxa de adesão.")
 
-    col_btn_refresh_crono, _ = st.columns([1.5, 4])
+    col_btn_refresh_crono, col_btn_clear_crono, _ = st.columns([1.5, 1.5, 3])
     with col_btn_refresh_crono:
         btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True)
         if btn_refresh_crono:
             st.cache_data.clear()
             st.rerun()
+
+    with col_btn_clear_crono:
+        with st.popover("🗑️ Limpar Cronograma"):
+            st.write("Deseja apagar todos os treinos agendados na aba 'Cronograma'?")
+            if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True):
+                with st.spinner("Limpando sessões da planilha..."):
+                    ok_cl, msg_cl = clear_cronograma_in_sheets()
+                    if ok_cl:
+                        st.success(msg_cl)
+                        st.rerun()
+                    else:
+                        st.error(msg_cl)
 
     df_crono, erro_crono = load_cronograma_from_sheets()
 
@@ -1249,20 +1280,41 @@ with tab_planilha:
                     historico_resumo = format_athlete_history_for_prompt(df_historico_plano)
 
                     status_plan.write("🧠 **Etapa 2/3:** Gemini 2.5 Flash aplicando fórmulas de periodização e cálculo de zonas...")
+                    
+                    # Cálculo explícito e determinístico das próximas 7 datas futuras (Ano 2026)
+                    hoje = datetime.now()
+                    dias_nomes = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
+                    dia_hoje_nome = dias_nomes[hoje.weekday()]
+                    datas_proximas = []
+                    for i in range(1, 8):
+                        dt = hoje + timedelta(days=i)
+                        nome_d = dias_nomes[dt.weekday()]
+                        datas_proximas.append(f"- Dia {i} ({nome_d}): {dt.strftime('%d/%m/%Y')}")
+                    calendario_datas_str = "\n".join(datas_proximas)
+
                     prompt_plano = f"""Atue como um Treinador de Corrida de Rua e Maratonas de elite.
-Elabore uma planilha de treinamento estruturada para os 7 dias da semana para este atleta, respeitando a fisiologia do esporte (máximo de 10% de evolução semanal).
+Elabore uma planilha de treinamento estruturada para as próximas 7 sessões para este atleta, respeitando a fisiologia do esporte (máximo de 10% de evolução semanal).
+
+CONTEXTO TEMPORAL RIGOROSO:
+- DATA ATUAL DE REFERÊNCIA: {dia_hoje_nome}, {hoje.strftime('%d/%m/%Y')} (ANO CORRENTE: {hoje.year}).
+- CALENDÁRIO OBRIGATÓRIO PARA AS PRÓXIMAS 7 SESSÕES FUTURAS ({hoje.year}):
+{calendario_datas_str}
+
+ATENÇÃO CRÍTICA SOBRE AS DATAS:
+O ano é {hoje.year}. As datas previstas para cada um dos 7 dias DEVEM SER OBRIGATORIAMENTE as datas futuras listadas no calendário acima (Ano {hoje.year}).
+NUNCA utilize o ano de 2024 ou datas passadas do histórico do atleta! O histórico serve estritamente para dosar volume e ritmo, NUNCA as datas!
 
 DADOS DO ATLETA E HISTÓRICO REAL NA PLANILHA:
 {historico_resumo}
 
 PARÂMETROS DEFINIDOS PELO ATLETA:
 - Objetivo: {objetivo_selecionado}
-- Frequência Semanal: {dias_semana} dias de treino de corrida
+- Frequência Semanal: {dias_semana} dias de treino de corrida (os outros {7 - dias_semana} dias devem ser 'Descanso' ou 'Descanso Ativo / Mobilidade')
 - Dia do Longão: {dia_longao}
 - Período: {ciclo_horizonte}
 - Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
 
-Forneça os 7 dias completos (de Segunda a Domingo) em formato JSON de acordo com o esquema solicitado.
+Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informadas acima) em formato JSON de acordo com o esquema solicitado.
 """
 
                     resp_plano = client.models.generate_content(
@@ -1313,10 +1365,18 @@ Forneça os 7 dias completos (de Segunda a Domingo) em formato JSON de acordo co
                 st.write(f"**Pace Alvo:** {d.pace_alvo} | **RPE Alvo:** {d.rpe_alvo}/10 {dur_label}")
                 st.write(f"**Estrutura:** {d.estrutura_treino}")
 
+        substituir_existente = st.checkbox(
+            "Substituir cronograma atual (limpar treinos antigos antes de salvar)",
+            value=True,
+            help="Se marcado, limpa as sessões antigas da aba 'Cronograma' e grava os novos 7 dias prescritos.",
+        )
+
         col_save_crono, col_dl_crono = st.columns([1.5, 1])
         with col_save_crono:
             if st.button("💾 Sincronizar esta Planilha com o Cronograma do Google Sheets", type="primary", use_container_width=True):
-                with st.spinner("Gravando os 7 treinos na aba 'Cronograma' do Google Sheets..."):
+                with st.spinner("Gravando as 7 sessões no Cronograma do Google Sheets..."):
+                    if substituir_existente:
+                        clear_cronograma_in_sheets()
                     sucesso_sync, msg_sync = save_weekly_plan_to_sheets(plano)
                     if sucesso_sync:
                         st.balloons()
