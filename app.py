@@ -241,12 +241,13 @@ class TreinoExtracao(BaseModel):
 class TreinoDiarioPrescrito(BaseModel):
     dia_semana: str = Field(description="Dia da semana (ex: Segunda-feira, Terça-feira, Quarta-feira, Quinta-feira, Sexta-feira, Sábado, Domingo)")
     data_prevista: str = Field(description="Data futura obrigatória no formato DD/MM/AAAA para a sessão no ano de 2026")
-    tipo_treino: str = Field(description="Ex: Rodagem Z2, Tiros de VO2 (Intervalado), Tempo Run (Ritmo), Descanso Ativo, Longão Progressivo")
-    distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5; informe 0.0 caso seja dia de descanso)")
+    modalidade: str = Field(default="Corrida", description="Modalidade: 'Corrida', 'Ciclismo', 'Natação', 'Transição (Brick)', 'Força' ou 'Descanso'")
+    tipo_treino: str = Field(description="Título do treino com emoji. Ex: '🏃 Rodagem Z2', '🚴 Ciclismo Endurance Z2', '🏊 Natação Séries 100m', '🚴🏃 Transição Brick (Bike + Run)', '💤 Descanso Ativo'")
+    distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5 para corrida; 35.0 para ciclismo; 1.5 para 1500m natação; 0.0 caso descanso)")
     duracao_min: float = Field(description="Duração estimada em minutos (ex: 45.0; 0.0 caso descanso)")
-    pace_alvo: str = Field(description="Faixa de pace alvo prescrita (ex: '05:15 - 05:30 /km' ou 'Descanso')")
+    pace_alvo: str = Field(description="Faixa de pace ou intensidade alvo (ex: '05:15 - 05:30 /km' corrida; 'Z2 Cadência 85-90 RPM' ciclismo; '01:50 /100m' natação; ou 'Descanso')")
     rpe_alvo: int = Field(description="Percepção de esforço planejada na escala Borg de 1 a 10")
-    estrutura_treino: str = Field(description="Aquecimento detalhado + Treino Principal com orientações + Desaquecimento")
+    estrutura_treino: str = Field(description="Aquecimento detalhado + Treino Principal com orientações específicas da modalidade + Desaquecimento")
 
 class PlanoSemanalPrescrito(BaseModel):
     titulo_ciclo: str = Field(description="Título do ciclo (ex: Semana 1 - Construção de Base e Adaptação Neuromuscular)")
@@ -946,17 +947,20 @@ with tab_cronograma:
             dist_str = f"{proximo['Distância (km)']:.1f} km" if proximo["Distância (km)"] > 0 else "Descanso / Mobilidade"
             dur_str = f"{proximo['Duração (min)']:.0f} min" if proximo["Duração (min)"] > 0 else "--"
 
+            tipo_raw = str(proximo['Tipo de Treino']).strip()
+            emoji_prefix = "" if any(tipo_raw.startswith(e) for e in ["🏃", "🚴", "🏊", "💤", "⚡", "🏋️", "🏅", "🏆", "🎯"]) else "🏃 "
+
             st.markdown(
                 f"""
                 <div class="next-workout-card">
                     <span class="coach-badge" style="background: rgba(99, 102, 241, 0.3); color: #C7D2FE;">
                         🔥 PRÓXIMO TREINO • {proximo['Dia da Semana']} ({proximo['Data Prevista']})
                     </span>
-                    <h3>🏃 {proximo['Tipo de Treino']}</h3>
+                    <h3>{emoji_prefix}{tipo_raw}</h3>
                     <p>
                         <strong>Distância Prevista:</strong> {dist_str} &nbsp;|&nbsp; 
                         <strong>Duração Estimada:</strong> {dur_str} &nbsp;|&nbsp; 
-                        <strong>Pace Alvo:</strong> {proximo['Pace Alvo']} &nbsp;|&nbsp; 
+                        <strong>Ritmo / Intensidade Alvo:</strong> {proximo['Pace Alvo']} &nbsp;|&nbsp; 
                         <strong>RPE Alvo:</strong> {proximo['RPE Alvo']}/10
                     </p>
                     <p><strong>Estrutura da Sessão:</strong><br>{proximo['Estrutura do Treino'].replace(chr(10), '<br>')}</p>
@@ -1177,9 +1181,9 @@ with tab_chat:
             with st.chat_message("assistant", avatar="🏃‍♂️"):
                 with st.spinner("O Treinador está consultando seu histórico e formulando a resposta..."):
                     try:
-                        chat_system_instruction = f"""Você é o Treinador Chefe de Corrida de Rua do atleta.
-Você possui vasta experiência com atletas de 5k, 10k, 21k e maratonistas, aplicando fisiologia do exercício (Jack Daniels VDOT, Lydiard, Pfitzinger).
-Sua missão é fornecer respostas técnicas, assertivas, empáticas e altamente personalizadas.
+                        chat_system_instruction = f"""Você é o Treinador Chefe de Corrida de Rua, Maratonas e Triatlo (Multiesporte: Natação, Ciclismo e Corrida) do atleta.
+Você possui vasta experiência com corredores e triatletas (Sprint, Olímpico, 70.3 e Ironman), aplicando fisiologia esportiva (treinamento cruzado, Jack Daniels VDOT, Lydiard, limiares de lactato e transições Brick).
+Sua missão é fornecer respostas técnicas, assertivas, motivadoras e personalizadas.
 
 CONTEXTO REAL DO ATLETA (HISTÓRICO ATUALIZADO DO GOOGLE SHEETS):
 {historico_texto}
@@ -1222,33 +1226,67 @@ with tab_planilha:
     st.markdown("### 📋 Montador Inteligente de Planilhas de Treino")
     st.write("Gere um ciclo semanal de treinamentos estruturado sob medida e envie para o seu Cronograma oficial com 1 clique.")
 
+    tipo_modalidade = st.radio(
+        "🏅 Modalidade Principal do Planejamento:",
+        ["🏃 Corrida de Rua & Maratona", "🏊🚴🏃 Triatlo (Multiesporte: Natação, Ciclismo & Corrida)"],
+        horizontal=True,
+    )
+
     col_p1, col_p2 = st.columns([1, 1], gap="large")
 
     with col_p1:
-        objetivo_selecionado = st.selectbox(
-            "🎯 Qual é o seu objetivo principal?",
-            options=[
-                "🏃 Estreia em Meia Maratona (21.1 km)",
-                "🏅 Sub 50 minutos nos 10 km",
-                "⚡ Recorde Pessoal nos 5 km",
-                "🏆 Preparação Completa para Maratona (42.2 km)",
-                "🫀 Construção Sólida de Base Aeróbica (Zona 2)",
-                "⚖️ Condicionamento Geral & Emagrecimento Saudável",
-            ],
-        )
-
-        dias_semana = st.slider(
-            "📅 Quantos dias por semana você pode treinar corrida?",
-            min_value=3,
-            max_value=6,
-            value=4,
-            help="Recomendado: 3 a 4 dias para 5k/10k; 4 a 5 dias para Meia Maratona; 4 a 6 dias para Maratona.",
-        )
-
-        dia_longao = st.selectbox(
-            "🏃 Qual o seu dia preferido para o Treino Longo (Longão)?",
-            options=["Domingo", "Sábado", "Outro dia da semana"],
-        )
+        if "Triatlo" in tipo_modalidade:
+            objetivo_selecionado = st.selectbox(
+                "🎯 Qual é a sua meta / distância de Triatlo?",
+                options=[
+                    "🏊🚴🏃 Triatlo Sprint (750m Natação / 20km Ciclismo / 5km Corrida)",
+                    "🏊🚴🏃 Triatlo Olímpico / Standard (1.5km Natação / 40km Ciclismo / 10km Corrida)",
+                    "🏊🚴🏃 Meio Ironman 70.3 (1.9km Natação / 90km Ciclismo / 21.1km Corrida)",
+                    "🏊🚴🏃 Ironman Completo 140.6 (3.8km Natação / 180km Ciclismo / 42.2km Corrida)",
+                    "🏊🚴🏃 Condicionamento Multiesporte & Base Aeróbica Tri",
+                ],
+            )
+            disciplinas_selecionadas = st.multiselect(
+                "Disciplinas incluídas na sua rotina semanal:",
+                options=["Natação", "Ciclismo", "Corrida", "Transição Brick (Bike + Run)"],
+                default=["Natação", "Ciclismo", "Corrida", "Transição Brick (Bike + Run)"],
+                help="O treinador distribuirá os 7 dias alternando as disciplinas escolhidas de forma balanceada.",
+            )
+            dias_semana = st.slider(
+                "📅 Quantas sessões de treino você deseja realizar na semana?",
+                min_value=4,
+                max_value=7,
+                value=6,
+                help="No triatlo, treinar de 5 a 6 dias intercalando modalidades preserva as articulações da corrida.",
+            )
+            dia_longao = st.selectbox(
+                "🚴 Qual o seu dia preferido para o treino longo (Bike longa ou Brick)?",
+                options=["Sábado", "Domingo", "Outro dia da semana"],
+            )
+        else:
+            objetivo_selecionado = st.selectbox(
+                "🎯 Qual é o seu objetivo principal?",
+                options=[
+                    "🏃 Estreia em Meia Maratona (21.1 km)",
+                    "🏅 Sub 50 minutos nos 10 km",
+                    "⚡ Recorde Pessoal nos 5 km",
+                    "🏆 Preparação Completa para Maratona (42.2 km)",
+                    "🫀 Construção Sólida de Base Aeróbica (Zona 2)",
+                    "⚖️ Condicionamento Geral & Emagrecimento Saudável",
+                ],
+            )
+            disciplinas_selecionadas = ["Corrida"]
+            dias_semana = st.slider(
+                "📅 Quantos dias por semana você pode treinar corrida?",
+                min_value=3,
+                max_value=6,
+                value=4,
+                help="Recomendado: 3 a 4 dias para 5k/10k; 4 a 5 dias para Meia Maratona; 4 a 6 dias para Maratona.",
+            )
+            dia_longao = st.selectbox(
+                "🏃 Qual o seu dia preferido para o Treino Longo (Longão)?",
+                options=["Domingo", "Sábado", "Outro dia da semana"],
+            )
 
     with col_p2:
         ciclo_horizonte = st.selectbox(
@@ -1262,7 +1300,7 @@ with tab_planilha:
 
         obs_lesoes = st.text_area(
             "🩺 Observações Físicas, Dores Recentes ou Restrições:",
-            placeholder="Ex: Leve desconforto na tíbia direita após treinos em asfalto; preferência por treinar musculação nas terças; sem lesões graves.",
+            placeholder="Ex: Leve desconforto na tíbia direita após treinos em asfalto; preferência por nadar às terças e quintas; sem lesões graves.",
             height=125,
         )
 
@@ -1292,8 +1330,33 @@ with tab_planilha:
                         datas_proximas.append(f"- Dia {i} ({nome_d}): {dt.strftime('%d/%m/%Y')}")
                     calendario_datas_str = "\n".join(datas_proximas)
 
-                    prompt_plano = f"""Atue como um Treinador de Corrida de Rua e Maratonas de elite.
-Elabore uma planilha de treinamento estruturada para as próximas 7 sessões para este atleta, respeitando a fisiologia do esporte (máximo de 10% de evolução semanal).
+                    if "Triatlo" in tipo_modalidade:
+                        diretrizes_metodologia = f"""
+MISSÃO ESPECIALIZADA: TREINADOR DE TRIATLO / MULTIESPORTE (SWIM, BIKE & RUN):
+Você é um Treinador de Triatlo certificado internacionalmente (Ironman / World Triathlon).
+Elabore uma periodização semanal estruturada de 7 sessões focada no objetivo: {objetivo_selecionado}.
+- Disciplinas autorizadas pelo atleta: {', '.join(disciplinas_selecionadas)}.
+- Frequência: {dias_semana} sessões na semana. Os outros {7 - dias_semana} dias devem ser 'Descanso' ou 'Descanso Ativo / Recuperação'.
+- Princípio do Treinamento Cruzado: alterne dias de impacto articular (corrida) com dias sem impacto (natação e ciclismo) para gerar grande adaptação cardiorrespiratória sem sobrecarga.
+- Treino de Transição (Brick): caso selecionado, prescreva pelo menos 1 treino de Brick (Ciclismo + corrida imediata em ritmo de prova para adaptação neuromuscular com pernas pesadas).
+- NATAÇÃO: Séries detalhadas com metragens exatas (ex: 300m aquec. + 8x100m ritmo c/ 20s desc. + 200m soltura). Pace alvo no formato mm:ss /100m.
+- CICLISMO: Especifique quilometragem, tempo, cadência recomendada (ex: 85-95 RPM) e zonas de esforço (Z2 base, Z3 ritmo ou subidas).
+- CORRIDA: Especifique quilometragem, aquecimento, ritmo (pace mm:ss /km) e RPE.
+- No campo 'tipo_treino', comece OBRIGATORIAMENTE com o emoji da modalidade: '🏊 Natação', '🚴 Ciclismo', '🏃 Corrida', '🚴🏃 Transição Brick' ou '💤 Descanso'.
+- No campo 'modalidade', preencha com 'Natação', 'Ciclismo', 'Corrida', 'Transição (Brick)' ou 'Descanso'.
+"""
+                    else:
+                        diretrizes_metodologia = f"""
+MISSÃO ESPECIALIZADA: TREINADOR DE CORRIDA DE RUA E MARATONAS:
+Você é um Treinador de Corrida de elite aplicando Jack Daniels VDOT e periodização clássica.
+Elabore uma planilha para as próximas 7 sessões com foco em {objetivo_selecionado}.
+- Frequência Semanal: {dias_semana} dias de corrida (os outros {7 - dias_semana} dias devem ser 'Descanso' ou 'Descanso Ativo').
+- Dia do Longão: {dia_longao}.
+- No campo 'tipo_treino', comece com emoji (ex: '🏃 Rodagem Z2', '⚡ Intervalado VO2', '🏆 Longão Progressivo', '💤 Descanso').
+- No campo 'modalidade', informe 'Corrida' ou 'Descanso'.
+"""
+
+                    prompt_plano = f"""{diretrizes_metodologia}
 
 CONTEXTO TEMPORAL RIGOROSO:
 - DATA ATUAL DE REFERÊNCIA: {dia_hoje_nome}, {hoje.strftime('%d/%m/%Y')} (ANO CORRENTE: {hoje.year}).
@@ -1308,9 +1371,9 @@ DADOS DO ATLETA E HISTÓRICO REAL NA PLANILHA:
 {historico_resumo}
 
 PARÂMETROS DEFINIDOS PELO ATLETA:
+- Categoria: {tipo_modalidade}
 - Objetivo: {objetivo_selecionado}
-- Frequência Semanal: {dias_semana} dias de treino de corrida (os outros {7 - dias_semana} dias devem ser 'Descanso' ou 'Descanso Ativo / Mobilidade')
-- Dia do Longão: {dia_longao}
+- Dia do Treino Chave / Longo: {dia_longao}
 - Período: {ciclo_horizonte}
 - Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
 

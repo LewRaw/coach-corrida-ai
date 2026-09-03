@@ -41,8 +41,10 @@ Aplicação web interativa desenvolvida em **Streamlit** para corredores de rua 
 
 5. **Aba "📋 Montador de Treinos"**:
    - Gerador de periodização estruturada com o Gemini 2.5 Flash (`Pydantic Schema`).
-   - Seleção de objetivos: Estreia em 21k, Sub 50 nos 10k, Recorde nos 5k, Maratona 42k ou Base Aeróbica Z2.
-   - **Sincronização com o Google Sheets**: Botão para salvar automaticamente os 7 treinos na aba `Cronograma` para acompanhamento no app.
+   - **Dois Modos de Planejamento**:
+     * **🏃 Corrida de Rua & Maratona**: Estreia em 21k, Sub 50 nos 10k, Recorde nos 5k, Maratona 42k ou Base Aeróbica Z2.
+     * **🏊🚴🏃 Triatlo (Multiesporte)**: Triatlo Sprint, Olímpico, Meio Ironman 70.3, Ironman 140.6 e Base Triatlo, com distribuição de Natação, Ciclismo, Corrida e treinos de transição *Brick* (Bike + Run).
+   - **Sincronização com o Google Sheets**: Botão para salvar automaticamente os 7 treinos na aba `Cronograma` para acompanhamento no app com opção de substituição automática.
    - Exportação da planilha de treinos em formato Markdown (`.md`).
 
 ---
