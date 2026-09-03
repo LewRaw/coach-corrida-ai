@@ -22,11 +22,23 @@ Aplicação web interativa desenvolvida em **Streamlit** para corredores de rua 
    - Persistência automática das informações estruturadas na aba `Treinos` do Google Sheets.
 
 2. **Aba "📊 Histórico e Gráficos"**:
-   - Leitura em tempo real dos registros no Google Sheets.
+   - Leitura em tempo real dos registros no Google Sheets com tratamento de formatos numéricos.
    - Indicadores agregados (Volume Total, Total de Sessões, FC Média Geral, Volume Médio por Sessão).
    - Gráfico de barras temporais com a evolução do volume de rodagem (km).
    - Gráfico de linha com o monitoramento da frequência cardíaca ao longo dos treinos.
    - Tabela de dados interativa para visualização completa dos registros e pareceres.
+
+3. **Aba "💬 Conversar com o Coach"**:
+   - Interface de chat interativo (`st.chat_message` e `st.chat_input`) direto com o Treinador de Corrida.
+   - **Consulta em Tempo Real ao Histórico**: O modelo acessa automaticamente os treinos, paces, frequências cardíacas e pareceres salvos na planilha para dar respostas hiper-personalizadas.
+   - Botões de atalhos rápidos com dúvidas frequentes (evolução de pace, prontidão para meia maratona, recomendação para o próximo treino, eficiência cardíaca).
+
+4. **Aba "📋 Montador de Treinos"**:
+   - Gerador de periodização e planilhas semanais de treino customizadas.
+   - Seleção de objetivos: Estreia em 21k, Sub 50 nos 10k, Recorde nos 5k, Maratona 42k ou Base Aeróbica Z2.
+   - Configuração de dias de treino disponíveis, dia preferido de longão e relato de dores/restrições.
+   - Aplicação de progressão segura de volume (regra dos 10%) e cálculo de tabela de paces alvo baseados nas métricas reais da planilha.
+   - Exportação da planilha de treinos em formato Markdown (`.md`).
 
 ---
 

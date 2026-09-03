@@ -88,6 +88,22 @@ st.markdown(
         margin-bottom: 0.85rem;
     }
 
+    /* Box de Plano de Treino */
+    .plan-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    @media (prefers-color-scheme: dark) {
+        .plan-card {
+            background: #1E293B;
+            border-color: #334155;
+            color: #F8FAFC;
+        }
+    }
+
     /* Ajustes para Métricas em telas pequenas */
     [data-testid="stMetricValue"] {
         font-size: 1.8rem !important;
@@ -225,7 +241,6 @@ def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspr
             ws.append_row(SHEET_COLUMNS)
             return ws
         
-        # Garante cabeçalho na linha 1 caso não exista
         all_values = ws.get_all_values()
         if not all_values or len(all_values) == 0:
             ws.append_row(SHEET_COLUMNS)
@@ -302,7 +317,6 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         if not rows:
             return pd.DataFrame(columns=headers), None
 
-        # Alinha número de colunas
         num_cols = len(headers)
         clean_rows = []
         for r in rows:
@@ -314,7 +328,6 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
 
         df = pd.DataFrame(clean_rows, columns=headers)
 
-        # Conversão numérica resiliente
         for c in df.columns:
             if "Dist" in c:
                 df[c] = df[c].apply(parse_float_br)
@@ -325,7 +338,6 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
             elif "RPE" in c:
                 df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
 
-        # Ordenação cronológica por data se disponível
         data_col = next((c for c in df.columns if "Data" in c), None)
         if data_col:
             try:
@@ -337,6 +349,47 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         return df, None
     except Exception as e:
         return None, f"Erro ao consultar o Google Sheets: {str(e)}"
+
+
+def format_athlete_history_for_prompt(df: Optional[pd.DataFrame]) -> str:
+    """Gera um prontuário textual estruturado dos treinos do atleta para alimentar os prompts."""
+    if df is None or df.empty:
+        return "Nenhum treino registrado ainda na planilha. O atleta está iniciando ou ainda não sincronizou atividades."
+
+    col_dist = next((c for c in df.columns if "Dist" in c), "Distância (km)")
+    col_tempo = next((c for c in df.columns if "Tempo" in c), "Tempo (min)")
+    col_pace = next((c for c in df.columns if "Pace" in c), "Pace Médio")
+    col_fc = next((c for c in df.columns if "FC" in c), "FC Média (bpm)")
+    col_zona = next((c for c in df.columns if "Zona" in c), "Zona Predominante")
+    col_rpe = next((c for c in df.columns if "RPE" in c), "RPE (1-10)")
+    col_notas = next((c for c in df.columns if "Notas" in c), "Notas do Atleta")
+    col_parecer = next((c for c in df.columns if "Parecer" in c), "Parecer do Treinador")
+    col_data = next((c for c in df.columns if "Data" in c), "Data")
+
+    total_km = df[col_dist].sum()
+    total_treinos = len(df)
+    fc_series = df[df[col_fc] > 0][col_fc]
+    fc_media = int(fc_series.mean()) if not fc_series.empty else "N/D"
+
+    linhas = [
+        "=== PRONTUARIO HISTORICO REAL DO ATLETA (DO GOOGLE SHEETS) ===",
+        f"- Total de sessoes registradas: {total_treinos}",
+        f"- Volume total acumulado: {total_km:.2f} km",
+        f"- Frequencia Cardiaca media global: {fc_media} bpm",
+        "",
+        "=== ULTIMOS TREINOS REGISTRADOS (do mais recente para o mais antigo) ===",
+    ]
+
+    for idx, row in df.iloc[::-1].head(15).iterrows():
+        linhas.append(
+            f"Data: {row.get(col_data, 'N/D')} | Distancia: {row.get(col_dist, 0):.2f} km | "
+            f"Pace: {row.get(col_pace, 'N/D')} /km | FC Media: {row.get(col_fc, 0)} bpm | "
+            f"Zona: {row.get(col_zona, 'N/D')} | RPE: {row.get(col_rpe, 0)}/10\n"
+            f"   - Notas do Atleta: {row.get(col_notas, 'Nenhuma')}\n"
+            f"   - Parecer do Treinador: {row.get(col_parecer, 'Nenhum')}\n"
+        )
+
+    return "\n".join(linhas)
 
 
 # ==============================================================================
@@ -387,7 +440,7 @@ col_title, col_status = st.columns([4, 1])
 with col_title:
     st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="main-subtitle">Consultoria técnica para maratonistas e corredores de rua com Gemini 2.5 & Google Sheets</div>',
+        '<div class="main-subtitle">Consultoria técnica de corrida, análise de prints, chat inteligente e montagem de treinos com Gemini 2.5 & Google Sheets</div>',
         unsafe_allow_html=True,
     )
 
@@ -403,7 +456,12 @@ with col_status:
 # ==============================================================================
 # ABAS PRINCIPAIS
 # ==============================================================================
-tab_novo_treino, tab_historico = st.tabs(["🏃 Novo Treino", "📊 Histórico e Gráficos"])
+tab_novo_treino, tab_historico, tab_chat, tab_planilha = st.tabs([
+    "🏃 Novo Treino",
+    "📊 Histórico e Gráficos",
+    "💬 Conversar com o Coach",
+    "📋 Montador de Treinos",
+])
 
 # ------------------------------------------------------------------------------
 # ABA 1: NOVO TREINO
@@ -468,7 +526,6 @@ with tab_novo_treino:
             if not client:
                 st.error("🔑 Chave de API do Gemini não configurada! Verifique `GEMINI_API_KEY` em `.streamlit/secrets.toml`.")
             else:
-                # Controle visual de processamento em etapas claras
                 with st.status("🏃 Processando treino com o Coach AI...", expanded=True) as status_box:
                     try:
                         status_box.write("📤 **Etapa 1/3:** Preparando imagem e enviando dados para o Gemini 2.5 Flash...")
@@ -501,7 +558,6 @@ with tab_novo_treino:
                                 expanded=True,
                             )
 
-                        # Armazena na sessão para persistência visual
                         st.session_state["ultimo_treino"] = resultado
                         st.session_state["sheets_salvo"] = salvo
                         st.session_state["sheets_msg"] = msg_sheets
@@ -510,7 +566,7 @@ with tab_novo_treino:
                         status_box.update(label="❌ Erro durante o processamento da atividade", state="error", expanded=True)
                         st.error(f"Detalhes do erro: {str(e)}")
 
-    # Exibição dos Resultados Análises (se disponível na sessão ou recém-analisado)
+    # Exibição dos Resultados Análises
     if "ultimo_treino" in st.session_state:
         res: TreinoExtracao = st.session_state["ultimo_treino"]
 
@@ -529,7 +585,6 @@ with tab_novo_treino:
             segundos = int(round((res.tempo_min - minutos) * 60))
             st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
 
-        # Card de Destaque com o Parecer Técnico do Treinador
         st.markdown(
             f"""
             <div class="coach-card">
@@ -568,14 +623,12 @@ with tab_historico:
     elif df_treinos is None or df_treinos.empty:
         st.warning("Nenhum treino registrado ainda na planilha. Registre sua primeira atividade na aba 'Novo Treino'!")
     else:
-        # Métricas Globais Consolidadas
         col_dist = next((c for c in df_treinos.columns if "Dist" in c), "Distância (km)")
         col_fc = next((c for c in df_treinos.columns if "FC" in c), "FC Média (bpm)")
         
         total_km = df_treinos[col_dist].sum()
         total_treinos = len(df_treinos)
         
-        # Média de FC ignorando zeros
         fc_validos = df_treinos[df_treinos[col_fc] > 0][col_fc]
         fc_global = int(fc_validos.mean()) if not fc_validos.empty else 0
         km_por_treino = (total_km / total_treinos) if total_treinos > 0 else 0
@@ -592,9 +645,7 @@ with tab_historico:
 
         st.markdown("---")
 
-        # Gráficos Analíticos
         tab_g1, tab_g2 = st.columns(2)
-
         data_col = next((c for c in df_treinos.columns if "Data" in c), "Data")
 
         with tab_g1:
@@ -641,7 +692,6 @@ with tab_historico:
             else:
                 st.info("Nenhuma frequência cardíaca registrada ainda para traçar a evolução temporal.")
 
-        # Tabela Detalhada com visualizador interativo
         st.markdown("---")
         st.markdown("#### 📋 Tabela Geral de Atividades")
         cols_to_show = [c for c in SHEET_COLUMNS if c in df_treinos.columns]
@@ -649,4 +699,246 @@ with tab_historico:
             df_treinos[cols_to_show],
             use_container_width=True,
             hide_index=True,
+        )
+
+# ------------------------------------------------------------------------------
+# ABA 3: CONVERSAR COM O COACH (CHAT INTELIGENTE COM ACESSO AO HISTÓRICO)
+# ------------------------------------------------------------------------------
+with tab_chat:
+    st.markdown("### 💬 Consultoria Direta com o Treinador")
+    st.write("Converse com o Coach sobre suas sensações, peça análises da sua evolução ou tire dúvidas sobre ritmo, nutrição e descanso. **O Treinador analisa o histórico de treinos da sua planilha em tempo real!**")
+
+    # Carrega o histórico recente do atleta para injetar no contexto
+    df_contexto, _ = load_workouts_from_sheets()
+    historico_texto = format_athlete_history_for_prompt(df_contexto)
+
+    # Inicializa o histórico de mensagens da sessão
+    if "chat_messages" not in st.session_state:
+        msg_inicial = (
+            "Fala atleta! 🏃‍♂️ Sou seu treinador de corrida com inteligência artificial. "
+            "Tenho acesso a todo o seu histórico registrado na planilha do Google Sheets. "
+            "Pode me perguntar sobre sua evolução de pace, como foi seu último treino, "
+            "se você está pronto para subir de distância ou o que fazer na sessão de amanhã. "
+            "Como posso te ajudar hoje?"
+        )
+        st.session_state["chat_messages"] = [{"role": "assistant", "content": msg_inicial}]
+
+    # Atalhos rápidos de perguntas (Chips)
+    st.markdown("###### ⚡ Perguntas Frequentes:")
+    chip_cols = st.columns(4)
+    quick_query = None
+    with chip_cols[0]:
+        if st.button("📈 Analisar evolução de pace", use_container_width=True):
+            quick_query = "Analise minha evolução de pace e consistência com base no meu histórico de treinos."
+    with chip_cols[1]:
+        if st.button("🎯 Estou pronto para Meia Maratona?", use_container_width=True):
+            quick_query = "Com base no meu volume e treinos registrados, estou pronto para correr uma Meia Maratona (21k)?"
+    with chip_cols[2]:
+        if st.button("💤 O que treinar amanhã?", use_container_width=True):
+            quick_query = "Considerando meu último treino registrado e o desgaste cardiovascular, qual treino devo fazer amanhã?"
+    with chip_cols[3]:
+        if st.button("❤️ Avaliar eficiência cardíaca", use_container_width=True):
+            quick_query = "Avalie minha eficiência cardíaca relacionando meu ritmo (pace), frequência cardíaca média e RPE nos meus treinos."
+
+    st.markdown("---")
+
+    # Exibe histórico do chat
+    for msg in st.session_state["chat_messages"]:
+        with st.chat_message(msg["role"], avatar="🏃‍♂️" if msg["role"] == "assistant" else "👤"):
+            st.markdown(msg["content"])
+
+    # Captura mensagem do input ou chip rápido
+    user_prompt = st.chat_input("Digite sua dúvida ou pedido para o Treinador...")
+    texto_a_enviar = quick_query or user_prompt
+
+    if texto_a_enviar:
+        # Adiciona e renderiza mensagem do atleta
+        st.session_state["chat_messages"].append({"role": "user", "content": texto_a_enviar})
+        with st.chat_message("user", avatar="👤"):
+            st.markdown(texto_a_enviar)
+
+        client = get_gemini_client()
+        if not client:
+            st.error("Chave de API do Gemini não configurada.")
+        else:
+            with st.chat_message("assistant", avatar="🏃‍♂️"):
+                with st.spinner("O Treinador está consultando seu histórico e formulando a resposta..."):
+                    try:
+                        chat_system_instruction = f"""Você é o Treinador Chefe de Corrida de Rua do atleta.
+Você possui vasta experiência com atletas de 5k, 10k, 21k e maratonistas, aplicando fisiologia do exercício (Jack Daniels VDOT, Lydiard, Pfitzinger).
+Sua missão é fornecer respostas técnicas, assertivas, empáticas e altamente personalizadas.
+
+CONTEXTO REAL DO ATLETA (HISTÓRICO ATUALIZADO DO GOOGLE SHEETS):
+{historico_texto}
+
+DIRETRIZES DA RESPOSTA:
+1. Sempre cite e cruze dados reais dos treinos do atleta (datas, quilometragens, FC e paces reais registrados).
+2. Se o atleta perguntar se está pronto para uma meta, seja honesto com base no volume e evolução observados.
+3. Se perguntar sobre o próximo treino, recomende com base na recuperação e no princípio da supercompensação.
+4. Mantenha tom motivador, profissional e esportivo.
+"""
+                        # Monta histórico de mensagens para a API
+                        gemini_contents = []
+                        for m in st.session_state["chat_messages"][-8:]:  # últimas 8 mensagens de contexto
+                            role = "user" if m["role"] == "user" else "model"
+                            gemini_contents.append(f"{role.upper()}: {m['content']}")
+
+                        prompt_completo = (
+                            f"{chat_system_instruction}\n\n"
+                            f"DIÁLOGO RECENTE:\n" + "\n".join(gemini_contents) + "\n\n"
+                            f"RESPONDA DIRETAMENTE AO ATLETA:"
+                        )
+
+                        response = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=prompt_completo,
+                            config=types.GenerateContentConfig(
+                                temperature=0.5,
+                            ),
+                        )
+
+                        resposta_coach = response.text
+                        st.markdown(resposta_coach)
+                        st.session_state["chat_messages"].append({"role": "assistant", "content": resposta_coach})
+                    except Exception as e:
+                        st.error(f"Erro ao conversar com o treinador: {str(e)}")
+
+# ------------------------------------------------------------------------------
+# ABA 4: MONTADOR DE TREINOS (PERIODIZAÇÃO INTELIGENTE BASEADA NO HISTÓRICO)
+# ------------------------------------------------------------------------------
+with tab_planilha:
+    st.markdown("### 📋 Montador Inteligente de Planilhas de Treino")
+    st.write("Gere um ciclo semanal de treinamentos estruturado sob medida. O algoritmo da IA analisa sua quilometragem recente na planilha para aplicar uma progressão segura sem sobrecarga ou risco de lesão.")
+
+    col_p1, col_p2 = st.columns([1, 1], gap="large")
+
+    with col_p1:
+        objetivo_selecionado = st.selectbox(
+            "🎯 Qual é o seu objetivo principal?",
+            options=[
+                "🏃 Estreia em Meia Maratona (21.1 km)",
+                "🏅 Sub 50 minutos nos 10 km",
+                "⚡ Recorde Pessoal nos 5 km",
+                "🏆 Preparação Completa para Maratona (42.2 km)",
+                "🫀 Construção Sólida de Base Aeróbica (Zona 2)",
+                "⚖️ Condicionamento Geral & Emagrecimento Saudável",
+            ],
+        )
+
+        dias_semana = st.slider(
+            "📅 Quantos dias por semana você pode treinar corrida?",
+            min_value=3,
+            max_value=6,
+            value=4,
+            help="Recomendado: 3 a 4 dias para 5k/10k; 4 a 5 dias para Meia Maratona; 4 a 6 dias para Maratona.",
+        )
+
+        dia_longao = st.selectbox(
+            "🏃 Qual o seu dia preferido para o Treino Longo (Longão)?",
+            options=["Domingo", "Sábado", "Outro dia da semana"],
+        )
+
+    with col_p2:
+        ciclo_horizonte = st.selectbox(
+            "⏳ Período do Planejamento:",
+            options=[
+                "Microciclo Imediato (Semana 1 / Próximos 7 dias)",
+                "Bloco de Base Aeróbica (4 Semanas)",
+                "Ciclo de Polimento Pré-Prova (2 Semanas)",
+            ],
+        )
+
+        obs_lesoes = st.text_area(
+            "🩺 Observações Físicas, Dores Recentes ou Restrições:",
+            placeholder="Ex: Leve desconforto na tíbia direita após treinos em asfalto; preferência por treinar musculação nas terças; sem lesões graves.",
+            height=125,
+        )
+
+        btn_gerar_plano = st.button("🚀 Gerar Planilha de Treinos com Coach AI", type="primary", use_container_width=True)
+
+    if btn_gerar_plano:
+        client = get_gemini_client()
+        if not client:
+            st.error("Chave de API do Gemini não configurada.")
+        else:
+            with st.status("📋 Construindo sua periodização personalizada com o Coach AI...", expanded=True) as status_plan:
+                try:
+                    status_plan.write("🔍 **Etapa 1/3:** Lendo histórico de treinos e calculando média de volume e paces...")
+                    df_historico_plano, _ = load_workouts_from_sheets()
+                    historico_resumo = format_athlete_history_for_prompt(df_historico_plano)
+
+                    status_plan.write("🧠 **Etapa 2/3:** Gemini 2.5 Flash aplicando fórmulas de periodização e cálculo de zonas...")
+                    prompt_plano = f"""Atue como um Treinador de Corrida de Rua e Maratonas de elite.
+Elabore uma planilha de treinamento completa e periodizada para este atleta, respeitando rigorosamente a fisiologia do esporte (regra de até 10% de evolução de volume semanal para prevenir sobrecargas e lesões).
+
+DADOS DO ATLETA E HISTÓRICO REAL NA PLANILHA:
+{historico_resumo}
+
+PARÂMETROS DEFINIDOS PELO ATLETA:
+- Objetivo: {objetivo_selecionado}
+- Frequência Semanal: {dias_semana} dias de treino de corrida
+- Dia do Longão: {dia_longao}
+- Período: {ciclo_horizonte}
+- Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
+
+ESTRUTURA DA RESPOSTA (EM FORMATAÇÃO MARKDOWN RICA):
+### 1. 🎯 Diagnóstico de Ponto de Partida e Metodologia
+- Análise da capacidade atual baseada no histórico real do atleta.
+- Metodologia adotada (ex: 80/20 polarizado, Jack Daniels VDOT, progressão aeróbica).
+
+### 2. ⏱️ Tabela de Paces e Zonas Cardíacas Alvo
+- **Pace Regenerativo (Z1)**: mm:ss/km
+- **Pace de Rodagem Confortável (Z2)**: mm:ss/km
+- **Pace de Ritmo / Tempo Run (Z3)**: mm:ss/km
+- **Pace de Limiar / Tiros (Z4/Z5)**: mm:ss/km
+
+### 3. 🗓️ Cronograma Semanal Detalhado (Dia a Dia)
+Para cada um dos 7 dias da semana (Segunda a Domingo):
+- **Dia e Foco do Treino** (ex: *Segunda-feira: Descanso Total ou Mobilidade*, *Terça-feira: Tiros de VO2 Máx*, etc.)
+- **Distância Total Prevista**: km
+- **Estrutura Detalhada**: Aquecimento + Parte Principal (com paces e zonas) + Desaquecimento
+- **Percepção Alvo (RPE 1-10)**
+
+### 4. 💡 Orientações Práticas do Treinador
+- Nutrição e hidratação recomendadas para o ciclo
+- Estratégia de recuperação (sono e mobilidade)
+- O que fazer caso sinta dores ou cansaço excessivo
+"""
+
+                    resp_plano = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt_plano,
+                        config=types.GenerateContentConfig(
+                            temperature=0.3,
+                        ),
+                    )
+
+                    status_plan.write("✅ **Etapa 3/3:** Planilha de treino gerada e pronta!")
+                    status_plan.update(label="✅ Planilha de treino construída com sucesso!", state="complete", expanded=False)
+
+                    st.session_state["plano_treino_gerado"] = resp_plano.text
+                except Exception as e:
+                    status_plan.update(label="❌ Erro na geração da planilha", state="error", expanded=True)
+                    st.error(f"Erro: {str(e)}")
+
+    # Exibe plano gerado
+    if "plano_treino_gerado" in st.session_state:
+        st.markdown("---")
+        st.markdown("### 🏆 Sua Planilha de Treino Personalizada")
+        
+        st.markdown(
+            f"""
+            <div class="plan-card">
+                {st.session_state["plano_treino_gerado"]}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.download_button(
+            label="📥 Baixar Planilha em Formato Texto (.md)",
+            data=st.session_state["plano_treino_gerado"],
+            file_name=f"planilha_treino_coach_ai_{datetime.now().strftime('%Y%m%d')}.md",
+            mime="text/markdown",
+            use_container_width=True,
         )
