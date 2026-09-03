@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Optional, Tuple, Dict, Any, List
 
 import gspread
+from gspread.exceptions import APIError
+import time
 from google.oauth2.service_account import Credentials
 from google import genai
 from google.genai import types
@@ -290,30 +292,40 @@ def get_gspread_client() -> Optional[gspread.Client]:
 
 
 # ==============================================================================
-# GESTÃO DA ABA "TREINOS" (EXECUÇÕES E PRINTS)
+# GESTÃO RESILIENTE DE PLANILHAS (CACHE @st.cache_data + RETRY CONTRA ERRO 429)
 # ==============================================================================
-def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspread.Worksheet]:
-    """Abre a planilha e garante a existência da aba 'Treinos' com cabeçalhos estruturados."""
-    try:
-        sh = gc.open_by_url(sheet_url)
+def run_with_retry(func, max_retries: int = 4, base_delay: float = 2.0):
+    """Executa chamadas do gspread com backoff exponencial contra limites 429 da API."""
+    for attempt in range(max_retries):
         try:
-            ws = sh.worksheet("Treinos")
-        except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title="Treinos", rows=500, cols=12)
-            ws.append_row(SHEET_COLUMNS)
-            return ws
-        
-        all_values = ws.get_all_values()
-        if not all_values or len(all_values) == 0:
-            ws.append_row(SHEET_COLUMNS)
-        else:
-            primeira_linha = all_values[0]
-            if not primeira_linha or not any("Data" in str(c) for c in primeira_linha):
-                ws.insert_row(SHEET_COLUMNS, 1)
+            return func()
+        except APIError as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                sleep_time = base_delay * (2 ** attempt)
+                time.sleep(sleep_time)
+            else:
+                raise
+        except Exception:
+            raise
 
-        return ws
+
+@st.cache_resource(ttl=3600)
+def get_cached_worksheet(sheet_url: str, title: str) -> Optional[gspread.Worksheet]:
+    """Mantém em cache os objetos de Worksheet para evitar chamadas de abertura repetidas."""
+    gc = get_gspread_client()
+    if not gc:
+        return None
+    try:
+        sh = run_with_retry(lambda: gc.open_by_url(sheet_url))
+        try:
+            return run_with_retry(lambda: sh.worksheet(title))
+        except gspread.WorksheetNotFound:
+            cols = SHEET_COLUMNS if title == "Treinos" else CRONOGRAMA_COLUMNS
+            ws = run_with_retry(lambda: sh.add_worksheet(title=title, rows=500, cols=len(cols) + 3))
+            run_with_retry(lambda: ws.append_row(cols))
+            return ws
     except Exception as e:
-        st.error(f"Falha ao acessar a aba 'Treinos' no Google Sheets: {e}")
+        st.error(f"Erro ao obter aba '{title}': {e}")
         return None
 
 
@@ -327,12 +339,8 @@ def append_workout_to_sheets(
     if not sheet_url:
         return False, "URL da planilha ('sheet_url') não configurada nos segredos."
 
-    gc = get_gspread_client()
-    if not gc:
-        return False, "Credenciais da Service Account ('gcp_service_account') não configuradas ou inválidas."
-
     try:
-        ws = get_or_create_worksheet(gc, sheet_url)
+        ws = get_cached_worksheet(sheet_url, "Treinos")
         if not ws:
             return False, "Não foi possível abrir a aba 'Treinos' na planilha."
 
@@ -348,28 +356,22 @@ def append_workout_to_sheets(
             analysis.parecer_treinador.strip(),
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ]
-        ws.append_row(nova_linha, value_input_option="USER_ENTERED")
+        run_with_retry(lambda: ws.append_row(nova_linha, value_input_option="USER_ENTERED"))
+        st.cache_data.clear()
         return True, "Treino registrado com sucesso no Google Sheets!"
     except Exception as e:
         return False, f"Erro ao gravar no Google Sheets: {str(e)}"
 
 
-def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-    """Carrega as atividades concluídas da aba 'Treinos'."""
-    sheet_url = get_secret_val("sheet_url")
-    if not sheet_url:
-        return None, "Configure o parâmetro 'sheet_url' em .streamlit/secrets.toml para carregar o histórico."
-
-    gc = get_gspread_client()
-    if not gc:
-        return None, "Configure 'gcp_service_account' em .streamlit/secrets.toml para sincronizar com o Google Sheets."
-
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_workouts_cached(sheet_url: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega as atividades da aba 'Treinos' mantendo cache em memória por 60 segundos."""
     try:
-        ws = get_or_create_worksheet(gc, sheet_url)
+        ws = get_cached_worksheet(sheet_url, "Treinos")
         if not ws:
             return None, "Não foi possível conectar com a aba 'Treinos'."
 
-        vals = ws.get_all_values()
+        vals = run_with_retry(lambda: ws.get_all_values())
         if not vals or len(vals) <= 1:
             return pd.DataFrame(columns=SHEET_COLUMNS), None
 
@@ -413,43 +415,24 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         return None, f"Erro ao consultar o Google Sheets: {str(e)}"
 
 
-# ==============================================================================
-# GESTÃO DA ABA "CRONOGRAMA" (TREINOS PRESCRITOS E CHECK-IN)
-# ==============================================================================
-def get_or_create_cronograma_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspread.Worksheet]:
-    """Garante a existência da aba 'Cronograma' na planilha."""
-    try:
-        sh = gc.open_by_url(sheet_url)
-        try:
-            ws = sh.worksheet("Cronograma")
-        except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title="Cronograma", rows=500, cols=15)
-            ws.append_row(CRONOGRAMA_COLUMNS)
-            return ws
-
-        all_values = ws.get_all_values()
-        if not all_values or len(all_values) == 0:
-            ws.append_row(CRONOGRAMA_COLUMNS)
-        else:
-            primeira_linha = all_values[0]
-            if not primeira_linha or not any("ID" in str(c) for c in primeira_linha):
-                ws.insert_row(CRONOGRAMA_COLUMNS, 1)
-
-        return ws
-    except Exception as e:
-        st.error(f"Falha ao acessar a aba 'Cronograma': {e}")
-        return None
+def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega as atividades concluídas da aba 'Treinos' aproveitando o cache."""
+    sheet_url = get_secret_val("sheet_url")
+    if not sheet_url:
+        return None, "Configure o parâmetro 'sheet_url' em .streamlit/secrets.toml para carregar o histórico."
+    if "gcp_service_account" not in st.secrets:
+        return None, "Configure 'gcp_service_account' em .streamlit/secrets.toml para sincronizar com o Google Sheets."
+    return _load_workouts_cached(sheet_url)
 
 
 def save_weekly_plan_to_sheets(plano: PlanoSemanalPrescrito) -> Tuple[bool, str]:
     """Salva os 7 dias gerados da planilha na aba 'Cronograma' com status 'Pendente'."""
     sheet_url = get_secret_val("sheet_url")
-    gc = get_gspread_client()
-    if not sheet_url or not gc:
+    if not sheet_url:
         return False, "Credenciais do Google Sheets não configuradas."
 
     try:
-        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        ws = get_cached_worksheet(sheet_url, "Cronograma")
         if not ws:
             return False, "Não foi possível abrir a aba 'Cronograma'."
 
@@ -473,25 +456,22 @@ def save_weekly_plan_to_sheets(plano: PlanoSemanalPrescrito) -> Tuple[bool, str]
             ]
             novas_linhas.append(linha)
 
-        ws.append_rows(novas_linhas, value_input_option="USER_ENTERED")
+        run_with_retry(lambda: ws.append_rows(novas_linhas, value_input_option="USER_ENTERED"))
+        st.cache_data.clear()
         return True, f"Plano com {len(novas_linhas)} sessões sincronizado com o Cronograma no Google Sheets!"
     except Exception as e:
         return False, f"Erro ao gravar cronograma: {str(e)}"
 
 
-def load_cronograma_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-    """Carrega as sessões prescritas da aba 'Cronograma'."""
-    sheet_url = get_secret_val("sheet_url")
-    gc = get_gspread_client()
-    if not sheet_url or not gc:
-        return None, "Google Sheets não configurado."
-
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_cronograma_cached(sheet_url: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega as sessões prescritas da aba 'Cronograma' mantendo cache de 60s."""
     try:
-        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        ws = get_cached_worksheet(sheet_url, "Cronograma")
         if not ws:
             return None, "Não foi possível conectar com a aba 'Cronograma'."
 
-        vals = ws.get_all_values()
+        vals = run_with_retry(lambda: ws.get_all_values())
         if not vals or len(vals) <= 1:
             return pd.DataFrame(columns=CRONOGRAMA_COLUMNS), None
 
@@ -512,7 +492,6 @@ def load_cronograma_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]
 
         df = pd.DataFrame(clean_rows, columns=headers)
 
-        # Conversão de tipos
         if "Distância (km)" in df.columns:
             df["Distância (km)"] = df["Distância (km)"].apply(parse_float_br)
         if "Duração (min)" in df.columns:
@@ -525,30 +504,40 @@ def load_cronograma_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]
         return None, f"Erro ao carregar Cronograma: {str(e)}"
 
 
+def load_cronograma_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega as sessões prescritas da aba 'Cronograma' aproveitando o cache de 60s."""
+    sheet_url = get_secret_val("sheet_url")
+    if not sheet_url:
+        return None, "Google Sheets não configurado."
+    if "gcp_service_account" not in st.secrets:
+        return None, "Credenciais do Google Sheets não configuradas."
+    return _load_cronograma_cached(sheet_url)
+
+
 def mark_workout_as_completed(workout_id: str) -> Tuple[bool, str]:
     """Localiza o treino pelo ID na aba 'Cronograma' e atualiza para 'Concluído ✅'."""
     sheet_url = get_secret_val("sheet_url")
-    gc = get_gspread_client()
-    if not sheet_url or not gc:
+    if not sheet_url:
         return False, "Google Sheets não configurado."
 
     try:
-        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        ws = get_cached_worksheet(sheet_url, "Cronograma")
         if not ws:
             return False, "Não foi possível abrir o Cronograma."
 
-        cell = ws.find(workout_id)
+        cell = run_with_retry(lambda: ws.find(workout_id))
         if not cell:
             return False, f"Treino com ID {workout_id} não encontrado na planilha."
 
-        headers = ws.row_values(1)
+        headers = run_with_retry(lambda: ws.row_values(1))
         col_status = headers.index("Status") + 1 if "Status" in headers else 10
         col_conclusao = headers.index("Data Conclusão") + 1 if "Data Conclusão" in headers else 11
 
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ws.update_cell(cell.row, col_status, "Concluído ✅")
-        ws.update_cell(cell.row, col_conclusao, now_str)
+        run_with_retry(lambda: ws.update_cell(cell.row, col_status, "Concluído ✅"))
+        run_with_retry(lambda: ws.update_cell(cell.row, col_conclusao, now_str))
 
+        st.cache_data.clear()
         return True, "Treino marcado como Concluído na planilha com sucesso!"
     except Exception as e:
         return False, f"Erro ao marcar treino: {str(e)}"
@@ -813,6 +802,9 @@ with tab_cronograma:
     col_btn_refresh_crono, _ = st.columns([1.5, 4])
     with col_btn_refresh_crono:
         btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True)
+        if btn_refresh_crono:
+            st.cache_data.clear()
+            st.rerun()
 
     df_crono, erro_crono = load_cronograma_from_sheets()
 
@@ -926,6 +918,9 @@ with tab_historico:
     col_btn_refresh, _ = st.columns([1.5, 4])
     with col_btn_refresh:
         btn_refresh = st.button("🔄 Atualizar / Recarregar Planilha", use_container_width=True)
+        if btn_refresh:
+            st.cache_data.clear()
+            st.rerun()
 
     df_treinos, erro_carregamento = load_workouts_from_sheets()
 
