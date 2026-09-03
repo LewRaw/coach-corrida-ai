@@ -21,23 +21,28 @@ Aplicação web interativa desenvolvida em **Streamlit** para corredores de rua 
      - *Próximo Passo*: Prescrição prática para a sessão seguinte (ex: descanso ativo, rodagem Z2, treino de força).
    - Persistência automática das informações estruturadas na aba `Treinos` do Google Sheets.
 
-2. **Aba "📊 Histórico e Gráficos"**:
-   - Leitura em tempo real dos registros no Google Sheets com tratamento de formatos numéricos.
+2. **Aba "📅 Treino Atual & Cronograma"**:
+   - **Hero Card do Próximo Treino**: Destaque para a próxima sessão agendada com distância, ritmo alvo, RPE e como executar.
+   - **Check-in Interativo**: Botão `✅ Marcar como Feito / Concluído` que atualiza diretamente a linha da sessão na aba `Cronograma` do Google Sheets com timestamp de conclusão e animação comemorativa.
+   - **Indicadores de Adesão**: Acompanhamento de metas com barra de progresso (treinos concluídos/totais e km completados).
+   - **Tabela Geral do Cronograma**: Histórico de sessões prescritas com filtros (`Todos`, `Pendentes ⏳` e `Concluídos ✅`).
+
+3. **Aba "📊 Histórico e Gráficos"**:
+   - Leitura em tempo real dos treinos concluídos na aba `Treinos` do Google Sheets com tratamento de formatos numéricos.
    - Indicadores agregados (Volume Total, Total de Sessões, FC Média Geral, Volume Médio por Sessão).
    - Gráfico de barras temporais com a evolução do volume de rodagem (km).
    - Gráfico de linha com o monitoramento da frequência cardíaca ao longo dos treinos.
    - Tabela de dados interativa para visualização completa dos registros e pareceres.
 
-3. **Aba "💬 Conversar com o Coach"**:
+4. **Aba "💬 Conversar com o Coach"**:
    - Interface de chat interativo (`st.chat_message` e `st.chat_input`) direto com o Treinador de Corrida.
    - **Consulta em Tempo Real ao Histórico**: O modelo acessa automaticamente os treinos, paces, frequências cardíacas e pareceres salvos na planilha para dar respostas hiper-personalizadas.
    - Botões de atalhos rápidos com dúvidas frequentes (evolução de pace, prontidão para meia maratona, recomendação para o próximo treino, eficiência cardíaca).
 
-4. **Aba "📋 Montador de Treinos"**:
-   - Gerador de periodização e planilhas semanais de treino customizadas.
+5. **Aba "📋 Montador de Treinos"**:
+   - Gerador de periodização estruturada com o Gemini 2.5 Flash (`Pydantic Schema`).
    - Seleção de objetivos: Estreia em 21k, Sub 50 nos 10k, Recorde nos 5k, Maratona 42k ou Base Aeróbica Z2.
-   - Configuração de dias de treino disponíveis, dia preferido de longão e relato de dores/restrições.
-   - Aplicação de progressão segura de volume (regra dos 10%) e cálculo de tabela de paces alvo baseados nas métricas reais da planilha.
+   - **Sincronização com o Google Sheets**: Botão para salvar automaticamente os 7 treinos na aba `Cronograma` para acompanhamento no app.
    - Exportação da planilha de treinos em formato Markdown (`.md`).
 
 ---

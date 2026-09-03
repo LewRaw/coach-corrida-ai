@@ -8,6 +8,7 @@ Streamlit + Google GenAI (gemini-2.5-flash) + Google Sheets (gspread)
 import io
 import json
 import os
+import uuid
 from datetime import datetime
 from typing import Optional, Tuple, Dict, Any, List
 
@@ -88,6 +89,30 @@ st.markdown(
         margin-bottom: 0.85rem;
     }
 
+    /* Card do Treino Atual / Próxima Sessão */
+    .next-workout-card {
+        background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 100%);
+        color: #F8FAFC !important;
+        border-radius: 14px;
+        padding: 1.6rem;
+        margin: 1rem 0 1.5rem 0;
+        border-left: 6px solid #6366F1;
+        box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.25);
+    }
+    .next-workout-card h3 {
+        color: #A5B4FC !important;
+        margin-top: 0 !important;
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .next-workout-card p {
+        font-size: 1.02rem;
+        line-height: 1.6;
+        color: #E2E8F0 !important;
+    }
+
     /* Box de Plano de Treino */
     .plan-card {
         background: #F8FAFC;
@@ -118,6 +143,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Colunas da aba de treinos executados
 SHEET_COLUMNS = [
     "Data",
     "Distância (km)",
@@ -131,8 +157,24 @@ SHEET_COLUMNS = [
     "Registrado Em",
 ]
 
+# Colunas da aba de cronograma / treinos prescritos
+CRONOGRAMA_COLUMNS = [
+    "ID",
+    "Dia da Semana",
+    "Data Prevista",
+    "Tipo de Treino",
+    "Distância (km)",
+    "Duração (min)",
+    "Pace Alvo",
+    "RPE Alvo",
+    "Estrutura do Treino",
+    "Status",
+    "Data Conclusão",
+    "Criado Em",
+]
+
 # ==============================================================================
-# MODELO PYDANTIC PARA STRUCTURED OUTPUT
+# MODELOS PYDANTIC PARA STRUCTURED OUTPUT
 # ==============================================================================
 class TreinoExtracao(BaseModel):
     data: str = Field(description="Data da atividade extraída da imagem no formato DD/MM/AAAA. Se o ano não for visível, use o ano corrente.")
@@ -149,6 +191,23 @@ class TreinoExtracao(BaseModel):
             "3. Recomendação prática e direta para a próxima sessão de treino (ex: regenerativo, descanso ativo, treino de força)."
         )
     )
+
+class TreinoDiarioPrescrito(BaseModel):
+    dia_semana: str = Field(description="Dia da semana (ex: Segunda-feira, Terça-feira, Quarta-feira, Quinta-feira, Sexta-feira, Sábado, Domingo)")
+    data_prevista: str = Field(description="Data sugerida no formato DD/MM/AAAA para a sessão considerando a semana atual ou seguinte")
+    tipo_treino: str = Field(description="Ex: Rodagem Z2, Tiros de VO2 (Intervalado), Tempo Run (Ritmo), Descanso Ativo, Longão Progressivo")
+    distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5; informe 0.0 caso seja dia de descanso)")
+    duracao_min: float = Field(description="Duração estimada em minutos (ex: 45.0; 0.0 caso descanso)")
+    pace_alvo: str = Field(description="Faixa de pace alvo prescrita (ex: '05:15 - 05:30 /km' ou 'Descanso')")
+    rpe_alvo: int = Field(description="Percepção de esforço planejada na escala Borg de 1 a 10")
+    estrutura_treino: str = Field(description="Aquecimento detalhado + Treino Principal com orientações + Desaquecimento")
+
+class PlanoSemanalPrescrito(BaseModel):
+    titulo_ciclo: str = Field(description="Título do ciclo (ex: Semana 1 - Construção de Base e Adaptação Neuromuscular)")
+    diagnostico_metodologia: str = Field(description="Diagnóstico da condição atual do atleta baseada no histórico da planilha e metodologia adotada")
+    paces_referencia: str = Field(description="Resumo dos paces de referência: Z1 Regenerativo, Z2 Rodagem, Z3 Tempo Run, Z4/Z5 Limiar e Tiros")
+    dias: List[TreinoDiarioPrescrito] = Field(description="Lista com os 7 dias completos da semana")
+    orientacoes_gerais: str = Field(description="Orientações essenciais de recuperação, hidratação, sono e prevenção de lesões para esta semana")
 
 COACH_SYSTEM_INSTRUCTION = """
 Você é um Treinador de Corrida de Rua e Maratonas de elite com mais de 20 anos de experiência na preparação de atletas amadores e competitivos.
@@ -230,6 +289,9 @@ def get_gspread_client() -> Optional[gspread.Client]:
         return None
 
 
+# ==============================================================================
+# GESTÃO DA ABA "TREINOS" (EXECUÇÕES E PRINTS)
+# ==============================================================================
 def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspread.Worksheet]:
     """Abre a planilha e garante a existência da aba 'Treinos' com cabeçalhos estruturados."""
     try:
@@ -251,7 +313,7 @@ def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspr
 
         return ws
     except Exception as e:
-        st.error(f"Falha ao acessar a planilha do Google Sheets: {e}")
+        st.error(f"Falha ao acessar a aba 'Treinos' no Google Sheets: {e}")
         return None
 
 
@@ -293,7 +355,7 @@ def append_workout_to_sheets(
 
 
 def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-    """Carrega as atividades do Google Sheets de forma robusta e independente de locale."""
+    """Carrega as atividades concluídas da aba 'Treinos'."""
     sheet_url = get_secret_val("sheet_url")
     if not sheet_url:
         return None, "Configure o parâmetro 'sheet_url' em .streamlit/secrets.toml para carregar o histórico."
@@ -349,6 +411,147 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         return df, None
     except Exception as e:
         return None, f"Erro ao consultar o Google Sheets: {str(e)}"
+
+
+# ==============================================================================
+# GESTÃO DA ABA "CRONOGRAMA" (TREINOS PRESCRITOS E CHECK-IN)
+# ==============================================================================
+def get_or_create_cronograma_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspread.Worksheet]:
+    """Garante a existência da aba 'Cronograma' na planilha."""
+    try:
+        sh = gc.open_by_url(sheet_url)
+        try:
+            ws = sh.worksheet("Cronograma")
+        except gspread.WorksheetNotFound:
+            ws = sh.add_worksheet(title="Cronograma", rows=500, cols=15)
+            ws.append_row(CRONOGRAMA_COLUMNS)
+            return ws
+
+        all_values = ws.get_all_values()
+        if not all_values or len(all_values) == 0:
+            ws.append_row(CRONOGRAMA_COLUMNS)
+        else:
+            primeira_linha = all_values[0]
+            if not primeira_linha or not any("ID" in str(c) for c in primeira_linha):
+                ws.insert_row(CRONOGRAMA_COLUMNS, 1)
+
+        return ws
+    except Exception as e:
+        st.error(f"Falha ao acessar a aba 'Cronograma': {e}")
+        return None
+
+
+def save_weekly_plan_to_sheets(plano: PlanoSemanalPrescrito) -> Tuple[bool, str]:
+    """Salva os 7 dias gerados da planilha na aba 'Cronograma' com status 'Pendente'."""
+    sheet_url = get_secret_val("sheet_url")
+    gc = get_gspread_client()
+    if not sheet_url or not gc:
+        return False, "Credenciais do Google Sheets não configuradas."
+
+    try:
+        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        if not ws:
+            return False, "Não foi possível abrir a aba 'Cronograma'."
+
+        timestamp_criacao = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        novas_linhas = []
+        for d in plano.dias:
+            treino_id = f"TR-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+            linha = [
+                treino_id,
+                d.dia_semana,
+                d.data_prevista,
+                d.tipo_treino,
+                d.distancia_km,
+                d.duracao_min,
+                d.pace_alvo,
+                d.rpe_alvo,
+                d.estrutura_treino,
+                "Pendente",
+                "",
+                timestamp_criacao,
+            ]
+            novas_linhas.append(linha)
+
+        ws.append_rows(novas_linhas, value_input_option="USER_ENTERED")
+        return True, f"Plano com {len(novas_linhas)} sessões sincronizado com o Cronograma no Google Sheets!"
+    except Exception as e:
+        return False, f"Erro ao gravar cronograma: {str(e)}"
+
+
+def load_cronograma_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega as sessões prescritas da aba 'Cronograma'."""
+    sheet_url = get_secret_val("sheet_url")
+    gc = get_gspread_client()
+    if not sheet_url or not gc:
+        return None, "Google Sheets não configurado."
+
+    try:
+        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        if not ws:
+            return None, "Não foi possível conectar com a aba 'Cronograma'."
+
+        vals = ws.get_all_values()
+        if not vals or len(vals) <= 1:
+            return pd.DataFrame(columns=CRONOGRAMA_COLUMNS), None
+
+        headers = vals[0]
+        rows = [r for r in vals[1:] if any(str(c).strip() for c in r)]
+
+        if not rows:
+            return pd.DataFrame(columns=headers), None
+
+        num_cols = len(headers)
+        clean_rows = []
+        for r in rows:
+            if len(r) < num_cols:
+                r = r + [""] * (num_cols - len(r))
+            elif len(r) > num_cols:
+                r = r[:num_cols]
+            clean_rows.append(r)
+
+        df = pd.DataFrame(clean_rows, columns=headers)
+
+        # Conversão de tipos
+        if "Distância (km)" in df.columns:
+            df["Distância (km)"] = df["Distância (km)"].apply(parse_float_br)
+        if "Duração (min)" in df.columns:
+            df["Duração (min)"] = df["Duração (min)"].apply(parse_float_br)
+        if "RPE Alvo" in df.columns:
+            df["RPE Alvo"] = pd.to_numeric(df["RPE Alvo"], errors="coerce").fillna(0).astype(int)
+
+        return df, None
+    except Exception as e:
+        return None, f"Erro ao carregar Cronograma: {str(e)}"
+
+
+def mark_workout_as_completed(workout_id: str) -> Tuple[bool, str]:
+    """Localiza o treino pelo ID na aba 'Cronograma' e atualiza para 'Concluído ✅'."""
+    sheet_url = get_secret_val("sheet_url")
+    gc = get_gspread_client()
+    if not sheet_url or not gc:
+        return False, "Google Sheets não configurado."
+
+    try:
+        ws = get_or_create_cronograma_worksheet(gc, sheet_url)
+        if not ws:
+            return False, "Não foi possível abrir o Cronograma."
+
+        cell = ws.find(workout_id)
+        if not cell:
+            return False, f"Treino com ID {workout_id} não encontrado na planilha."
+
+        headers = ws.row_values(1)
+        col_status = headers.index("Status") + 1 if "Status" in headers else 10
+        col_conclusao = headers.index("Data Conclusão") + 1 if "Data Conclusão" in headers else 11
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws.update_cell(cell.row, col_status, "Concluído ✅")
+        ws.update_cell(cell.row, col_conclusao, now_str)
+
+        return True, "Treino marcado como Concluído na planilha com sucesso!"
+    except Exception as e:
+        return False, f"Erro ao marcar treino: {str(e)}"
 
 
 def format_athlete_history_for_prompt(df: Optional[pd.DataFrame]) -> str:
@@ -440,7 +643,7 @@ col_title, col_status = st.columns([4, 1])
 with col_title:
     st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="main-subtitle">Consultoria técnica de corrida, análise de prints, chat inteligente e montagem de treinos com Gemini 2.5 & Google Sheets</div>',
+        '<div class="main-subtitle">Consultoria de corrida, análise de prints, cronograma inteligente e check-in com Gemini 2.5 & Google Sheets</div>',
         unsafe_allow_html=True,
     )
 
@@ -454,10 +657,11 @@ with col_status:
         st.caption("🟡 **Modo Parcial / Demo**")
 
 # ==============================================================================
-# ABAS PRINCIPAIS
+# ABAS PRINCIPAIS (5 ABAS COMPLETAS)
 # ==============================================================================
-tab_novo_treino, tab_historico, tab_chat, tab_planilha = st.tabs([
+tab_novo_treino, tab_cronograma, tab_historico, tab_chat, tab_planilha = st.tabs([
     "🏃 Novo Treino",
+    "📅 Treino Atual & Cronograma",
     "📊 Histórico e Gráficos",
     "💬 Conversar com o Coach",
     "📋 Montador de Treinos",
@@ -600,7 +804,121 @@ with tab_novo_treino:
             st.success("💾 Atividade registrada com sucesso na aba 'Treinos' da sua planilha!")
 
 # ------------------------------------------------------------------------------
-# ABA 2: HISTÓRICO E GRÁFICOS
+# ABA 2: TREINO ATUAL & CRONOGRAMA (NOVA FUNCIONALIDADE)
+# ------------------------------------------------------------------------------
+with tab_cronograma:
+    st.markdown("### 📅 Cronograma de Treinos & Sessão do Dia")
+    st.write("Acompanhe o que está agendado na sua planilha, marque os treinos concluídos com 1 clique e monitore sua taxa de adesão.")
+
+    col_btn_refresh_crono, _ = st.columns([1.5, 4])
+    with col_btn_refresh_crono:
+        btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True)
+
+    df_crono, erro_crono = load_cronograma_from_sheets()
+
+    if erro_crono:
+        st.info(f"ℹ️ {erro_crono}")
+    elif df_crono is None or df_crono.empty:
+        st.info(
+            "📋 Você ainda não possui treinos agendados no Cronograma. "
+            "Acesse a aba **'📋 Montador de Treinos'** para prescrever sua planilha semanal e sincronizá-la automaticamente com esta aba!"
+        )
+    else:
+        # Métricas de Progresso da Planilha Prescrita
+        total_sessoes = len(df_crono)
+        concluidos = len(df_crono[df_crono["Status"].str.contains("Concluído", na=False)])
+        pendentes = total_sessoes - concluidos
+        pct_conclusao = (concluidos / total_sessoes) if total_sessoes > 0 else 0.0
+
+        km_planejados = df_crono["Distância (km)"].sum()
+        km_feitos = df_crono[df_crono["Status"].str.contains("Concluído", na=False)]["Distância (km)"].sum()
+
+        st.markdown(f"#### 🎯 Meta do Ciclo: {concluidos}/{total_sessoes} Sessões Concluídas ({pct_conclusao * 100:.0f}%)")
+        st.progress(pct_conclusao)
+
+        c_col1, c_col2, c_col3, c_col4 = st.columns(4)
+        with c_col1:
+            st.metric("⏳ Pendentes", f"{pendentes} treinos")
+        with c_col2:
+            st.metric("✅ Concluídos", f"{concluidos} treinos")
+        with c_col3:
+            st.metric("🏃 Km Concluídos", f"{km_feitos:.1f} / {km_planejados:.1f} km")
+        with c_col4:
+            st.metric("📊 Taxa de Adesão", f"{pct_conclusao * 100:.1f}%")
+
+        st.markdown("---")
+
+        # Localiza o próximo treino pendente (Hero Card)
+        df_pendentes = df_crono[df_crono["Status"] == "Pendente"]
+        if not df_pendentes.empty:
+            proximo = df_pendentes.iloc[0]
+            proximo_id = proximo["ID"]
+            dist_str = f"{proximo['Distância (km)']:.1f} km" if proximo["Distância (km)"] > 0 else "Descanso / Mobilidade"
+            dur_str = f"{proximo['Duração (min)']:.0f} min" if proximo["Duração (min)"] > 0 else "--"
+
+            st.markdown(
+                f"""
+                <div class="next-workout-card">
+                    <span class="coach-badge" style="background: rgba(99, 102, 241, 0.3); color: #C7D2FE;">
+                        🔥 PRÓXIMO TREINO • {proximo['Dia da Semana']} ({proximo['Data Prevista']})
+                    </span>
+                    <h3>🏃 {proximo['Tipo de Treino']}</h3>
+                    <p>
+                        <strong>Distância Prevista:</strong> {dist_str} &nbsp;|&nbsp; 
+                        <strong>Duração Estimada:</strong> {dur_str} &nbsp;|&nbsp; 
+                        <strong>Pace Alvo:</strong> {proximo['Pace Alvo']} &nbsp;|&nbsp; 
+                        <strong>RPE Alvo:</strong> {proximo['RPE Alvo']}/10
+                    </p>
+                    <p><strong>Estrutura da Sessão:</strong><br>{proximo['Estrutura do Treino'].replace(chr(10), '<br>')}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            col_checkin, _ = st.columns([1.5, 3])
+            with col_checkin:
+                if st.button("✅ Marcar este Treino como Feito / Concluído", type="primary", use_container_width=True):
+                    with st.spinner("Atualizando status na planilha Google Sheets..."):
+                        sucesso_ck, msg_ck = mark_workout_as_completed(proximo_id)
+                        if sucesso_ck:
+                            st.balloons()
+                            st.success(f"🎉 Parabéns atleta! {msg_ck}")
+                            st.rerun()
+                        else:
+                            st.error(msg_ck)
+        else:
+            st.success("🎉 Parabéns! Você concluiu todos os treinos prescritos para este ciclo. Que tal gerar uma nova planilha no 'Montador de Treinos'?")
+
+        # Tabela Geral do Cronograma
+        st.markdown("---")
+        st.markdown("#### 📋 Visão Completa do Cronograma")
+        
+        filtro_status = st.radio(
+            "Filtrar por Status:",
+            ["Todos", "Apenas Pendentes ⏳", "Apenas Concluídos ✅"],
+            horizontal=True,
+        )
+
+        df_exibir_crono = df_crono.copy()
+        if filtro_status == "Apenas Pendentes ⏳":
+            df_exibir_crono = df_exibir_crono[df_exibir_crono["Status"] == "Pendente"]
+        elif filtro_status == "Apenas Concluídos ✅":
+            df_exibir_crono = df_exibir_crono[df_exibir_crono["Status"].str.contains("Concluído", na=False)]
+
+        colunas_exibir = [
+            c for c in [
+                "Dia da Semana", "Data Prevista", "Tipo de Treino", "Distância (km)",
+                "Duração (min)", "Pace Alvo", "RPE Alvo", "Estrutura do Treino", "Status", "Data Conclusão"
+            ] if c in df_exibir_crono.columns
+        ]
+        st.dataframe(
+            df_exibir_crono[colunas_exibir],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+# ------------------------------------------------------------------------------
+# ABA 3: HISTÓRICO E GRÁFICOS
 # ------------------------------------------------------------------------------
 with tab_historico:
     st.markdown("### 📊 Histórico de Atividades & Evolução Fisiológica")
@@ -702,17 +1020,15 @@ with tab_historico:
         )
 
 # ------------------------------------------------------------------------------
-# ABA 3: CONVERSAR COM O COACH (CHAT INTELIGENTE COM ACESSO AO HISTÓRICO)
+# ABA 4: CONVERSAR COM O COACH (CHAT INTELIGENTE COM ACESSO AO HISTÓRICO)
 # ------------------------------------------------------------------------------
 with tab_chat:
     st.markdown("### 💬 Consultoria Direta com o Treinador")
     st.write("Converse com o Coach sobre suas sensações, peça análises da sua evolução ou tire dúvidas sobre ritmo, nutrição e descanso. **O Treinador analisa o histórico de treinos da sua planilha em tempo real!**")
 
-    # Carrega o histórico recente do atleta para injetar no contexto
     df_contexto, _ = load_workouts_from_sheets()
     historico_texto = format_athlete_history_for_prompt(df_contexto)
 
-    # Inicializa o histórico de mensagens da sessão
     if "chat_messages" not in st.session_state:
         msg_inicial = (
             "Fala atleta! 🏃‍♂️ Sou seu treinador de corrida com inteligência artificial. "
@@ -723,7 +1039,6 @@ with tab_chat:
         )
         st.session_state["chat_messages"] = [{"role": "assistant", "content": msg_inicial}]
 
-    # Atalhos rápidos de perguntas (Chips)
     st.markdown("###### ⚡ Perguntas Frequentes:")
     chip_cols = st.columns(4)
     quick_query = None
@@ -742,17 +1057,14 @@ with tab_chat:
 
     st.markdown("---")
 
-    # Exibe histórico do chat
     for msg in st.session_state["chat_messages"]:
         with st.chat_message(msg["role"], avatar="🏃‍♂️" if msg["role"] == "assistant" else "👤"):
             st.markdown(msg["content"])
 
-    # Captura mensagem do input ou chip rápido
     user_prompt = st.chat_input("Digite sua dúvida ou pedido para o Treinador...")
     texto_a_enviar = quick_query or user_prompt
 
     if texto_a_enviar:
-        # Adiciona e renderiza mensagem do atleta
         st.session_state["chat_messages"].append({"role": "user", "content": texto_a_enviar})
         with st.chat_message("user", avatar="👤"):
             st.markdown(texto_a_enviar)
@@ -777,9 +1089,8 @@ DIRETRIZES DA RESPOSTA:
 3. Se perguntar sobre o próximo treino, recomende com base na recuperação e no princípio da supercompensação.
 4. Mantenha tom motivador, profissional e esportivo.
 """
-                        # Monta histórico de mensagens para a API
                         gemini_contents = []
-                        for m in st.session_state["chat_messages"][-8:]:  # últimas 8 mensagens de contexto
+                        for m in st.session_state["chat_messages"][-8:]:
                             role = "user" if m["role"] == "user" else "model"
                             gemini_contents.append(f"{role.upper()}: {m['content']}")
 
@@ -804,11 +1115,11 @@ DIRETRIZES DA RESPOSTA:
                         st.error(f"Erro ao conversar com o treinador: {str(e)}")
 
 # ------------------------------------------------------------------------------
-# ABA 4: MONTADOR DE TREINOS (PERIODIZAÇÃO INTELIGENTE BASEADA NO HISTÓRICO)
+# ABA 5: MONTADOR DE TREINOS (PERIODIZAÇÃO E ENVIO AO CRONOGRAMA)
 # ------------------------------------------------------------------------------
 with tab_planilha:
     st.markdown("### 📋 Montador Inteligente de Planilhas de Treino")
-    st.write("Gere um ciclo semanal de treinamentos estruturado sob medida. O algoritmo da IA analisa sua quilometragem recente na planilha para aplicar uma progressão segura sem sobrecarga ou risco de lesão.")
+    st.write("Gere um ciclo semanal de treinamentos estruturado sob medida e envie para o seu Cronograma oficial com 1 clique.")
 
     col_p1, col_p2 = st.columns([1, 1], gap="large")
 
@@ -869,7 +1180,7 @@ with tab_planilha:
 
                     status_plan.write("🧠 **Etapa 2/3:** Gemini 2.5 Flash aplicando fórmulas de periodização e cálculo de zonas...")
                     prompt_plano = f"""Atue como um Treinador de Corrida de Rua e Maratonas de elite.
-Elabore uma planilha de treinamento completa e periodizada para este atleta, respeitando rigorosamente a fisiologia do esporte (regra de até 10% de evolução de volume semanal para prevenir sobrecargas e lesões).
+Elabore uma planilha de treinamento estruturada para os 7 dias da semana para este atleta, respeitando a fisiologia do esporte (máximo de 10% de evolução semanal).
 
 DADOS DO ATLETA E HISTÓRICO REAL NA PLANILHA:
 {historico_resumo}
@@ -881,64 +1192,85 @@ PARÂMETROS DEFINIDOS PELO ATLETA:
 - Período: {ciclo_horizonte}
 - Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
 
-ESTRUTURA DA RESPOSTA (EM FORMATAÇÃO MARKDOWN RICA):
-### 1. 🎯 Diagnóstico de Ponto de Partida e Metodologia
-- Análise da capacidade atual baseada no histórico real do atleta.
-- Metodologia adotada (ex: 80/20 polarizado, Jack Daniels VDOT, progressão aeróbica).
-
-### 2. ⏱️ Tabela de Paces e Zonas Cardíacas Alvo
-- **Pace Regenerativo (Z1)**: mm:ss/km
-- **Pace de Rodagem Confortável (Z2)**: mm:ss/km
-- **Pace de Ritmo / Tempo Run (Z3)**: mm:ss/km
-- **Pace de Limiar / Tiros (Z4/Z5)**: mm:ss/km
-
-### 3. 🗓️ Cronograma Semanal Detalhado (Dia a Dia)
-Para cada um dos 7 dias da semana (Segunda a Domingo):
-- **Dia e Foco do Treino** (ex: *Segunda-feira: Descanso Total ou Mobilidade*, *Terça-feira: Tiros de VO2 Máx*, etc.)
-- **Distância Total Prevista**: km
-- **Estrutura Detalhada**: Aquecimento + Parte Principal (com paces e zonas) + Desaquecimento
-- **Percepção Alvo (RPE 1-10)**
-
-### 4. 💡 Orientações Práticas do Treinador
-- Nutrição e hidratação recomendadas para o ciclo
-- Estratégia de recuperação (sono e mobilidade)
-- O que fazer caso sinta dores ou cansaço excessivo
+Forneça os 7 dias completos (de Segunda a Domingo) em formato JSON de acordo com o esquema solicitado.
 """
 
                     resp_plano = client.models.generate_content(
                         model="gemini-2.5-flash",
                         contents=prompt_plano,
                         config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=PlanoSemanalPrescrito,
                             temperature=0.3,
                         ),
                     )
 
-                    status_plan.write("✅ **Etapa 3/3:** Planilha de treino gerada e pronta!")
+                    status_plan.write("✅ **Etapa 3/3:** Planilha de treino gerada e estruturada com sucesso!")
                     status_plan.update(label="✅ Planilha de treino construída com sucesso!", state="complete", expanded=False)
 
-                    st.session_state["plano_treino_gerado"] = resp_plano.text
+                    plano_objeto: PlanoSemanalPrescrito = resp_plano.parsed if hasattr(resp_plano, "parsed") and resp_plano.parsed else PlanoSemanalPrescrito(**json.loads(resp_plano.text))
+                    st.session_state["plano_estruturado"] = plano_objeto
+
                 except Exception as e:
                     status_plan.update(label="❌ Erro na geração da planilha", state="error", expanded=True)
                     st.error(f"Erro: {str(e)}")
 
-    # Exibe plano gerado
-    if "plano_treino_gerado" in st.session_state:
+    # Exibe plano estruturado gerado
+    if "plano_estruturado" in st.session_state:
+        plano: PlanoSemanalPrescrito = st.session_state["plano_estruturado"]
         st.markdown("---")
-        st.markdown("### 🏆 Sua Planilha de Treino Personalizada")
+        st.markdown(f"### 🏆 {plano.titulo_ciclo}")
         
         st.markdown(
             f"""
             <div class="plan-card">
-                {st.session_state["plano_treino_gerado"]}
+                <h4>🎯 Diagnóstico e Metodologia</h4>
+                <p>{plano.diagnostico_metodologia}</p>
+                <h4>⏱️ Paces de Referência</h4>
+                <p>{plano.paces_referencia}</p>
+                <h4>💡 Orientações Gerais do Treinador</h4>
+                <p>{plano.orientacoes_gerais}</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.download_button(
-            label="📥 Baixar Planilha em Formato Texto (.md)",
-            data=st.session_state["plano_treino_gerado"],
-            file_name=f"planilha_treino_coach_ai_{datetime.now().strftime('%Y%m%d')}.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
+        st.markdown("#### 🗓️ Cronograma dos 7 Dias da Semana:")
+        for d in plano.dias:
+            dist_label = f"📏 {d.distancia_km:.1f} km" if d.distancia_km > 0 else "💤 Descanso"
+            dur_label = f"⏳ {d.duracao_min:.0f} min" if d.duracao_min > 0 else ""
+            with st.expander(f"{d.dia_semana} ({d.data_prevista}) — {d.tipo_treino} ({dist_label})", expanded=True):
+                st.write(f"**Pace Alvo:** {d.pace_alvo} | **RPE Alvo:** {d.rpe_alvo}/10 {dur_label}")
+                st.write(f"**Estrutura:** {d.estrutura_treino}")
+
+        col_save_crono, col_dl_crono = st.columns([1.5, 1])
+        with col_save_crono:
+            if st.button("💾 Sincronizar esta Planilha com o Cronograma do Google Sheets", type="primary", use_container_width=True):
+                with st.spinner("Gravando os 7 treinos na aba 'Cronograma' do Google Sheets..."):
+                    sucesso_sync, msg_sync = save_weekly_plan_to_sheets(plano)
+                    if sucesso_sync:
+                        st.balloons()
+                        st.success(f"✅ {msg_sync}")
+                    else:
+                        st.error(msg_sync)
+
+        with col_dl_crono:
+            texto_md = (
+                f"# {plano.titulo_ciclo}\n\n"
+                f"## Metodologia\n{plano.diagnostico_metodologia}\n\n"
+                f"## Paces de Referência\n{plano.paces_referencia}\n\n"
+                f"## Cronograma Semanal\n"
+            )
+            for d in plano.dias:
+                texto_md += f"### {d.dia_semana} ({d.data_prevista}) - {d.tipo_treino}\n"
+                texto_md += f"- Distância: {d.distancia_km:.1f} km | Duração: {d.duracao_min:.0f} min | Pace: {d.pace_alvo} | RPE: {d.rpe_alvo}/10\n"
+                texto_md += f"- Estrutura: {d.estrutura_treino}\n\n"
+            texto_md += f"## Orientações Gerais\n{plano.orientacoes_gerais}\n"
+
+            st.download_button(
+                label="📥 Baixar em Markdown (.md)",
+                data=texto_md,
+                file_name=f"planilha_treinos_{datetime.now().strftime('%Y%m%d')}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
