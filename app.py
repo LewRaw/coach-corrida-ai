@@ -709,28 +709,65 @@ with col_status:
     else:
         st.caption("🟡 **Modo Parcial / Demo**")
 
-# Expander de Apoio e Guia para o Atleta / Celular
-with st.expander("📱 Dica para o Celular & Guia Rápido do Atleta (Clique para abrir)"):
-    st.markdown(
-        """
-        ##### 📲 Como transformar em app no seu celular:
-        - **No iPhone (Safari):** Toque no ícone de compartilhar (quadrado com seta) e selecione **"Adicionar à Tela de Início"**.
-        - **No Android (Chrome):** Toque nos 3 pontinhos e selecione **"Adicionar à tela inicial"** ou **"Instalar aplicativo"**.
+# Expander de Apoio, Guia do Atleta e Dicionário de Termos
+with st.expander("📱 Guia do Atleta & 📖 Dicionário de Termos (Pace, RPE, Zonas, Brick...)"):
+    tab_exp_guia, tab_exp_termos = st.tabs(["📲 Como Usar no Celular", "📖 Dicionário de Termos & Jargões"])
 
-        ---
-        ##### 🏃 Guia em 4 Passos:
-        1. **📅 Ver o Treino do Dia:** Na aba *Treino Atual & Cronograma*, veja o que está agendado e como executar.
-        2. **✅ Fazer Check-in:** Terminou a corrida? Clique no botão *Marcar como Feito* para atualizar sua planilha.
-        3. **📤 Subir o Print (Opcional):** Na aba *Novo Treino*, envie o print do Strava ou Garmin para receber o parecer técnico da IA.
-        4. **💬 Conversar com o Coach:** Na aba *Conversar com o Coach*, tire dúvidas sobre ritmo, dores, descanso e nutrição.
+    with tab_exp_guia:
+        st.markdown(
+            """
+            ##### 📲 Como transformar em app no seu celular:
+            - **No iPhone (Safari):** Toque no ícone de compartilhar (quadrado com seta) e selecione **"Adicionar à Tela de Início"**.
+            - **No Android (Chrome):** Toque nos 3 pontinhos e selecione **"Adicionar à tela inicial"** ou **"Instalar aplicativo"**.
 
-        ---
-        ##### ⚠️ Dicas e Limites:
-        - **Prints nítidos:** O print deve mostrar pelo menos distância, tempo total e pace médio.
-        - **Atualização rápida:** O app sincroniza a cada 60s. Para forçar a busca imediata, use o botão **🔄 Atualizar**.
-        - **Saúde primeiro:** A consultoria do Coach AI auxilia nos treinos amadores e maratonas; em caso de dor aguda persistente, procure sempre um fisioterapeuta ou médico.
-        """
-    )
+            ---
+            ##### 🏃 Rotina Rápida em 4 Passos:
+            1. **📅 Ver o Treino do Dia:** Na aba *Treino Atual & Cronograma*, veja o que está agendado e como executar.
+            2. **✅ Fazer Check-in:** Terminou a corrida? Clique no botão *Marcar como Feito* para atualizar sua planilha.
+            3. **📤 Subir o Print (Opcional):** Na aba *Novo Treino*, envie o print do Strava ou Garmin para receber o parecer técnico da IA.
+            4. **💬 Conversar com o Coach:** Na aba *Conversar com o Coach*, tire dúvidas sobre ritmo, dores, descanso e nutrição.
+
+            ---
+            ##### ⚠️ Dicas e Limites:
+            - **Prints nítidos:** O print deve mostrar pelo menos distância, tempo total e pace médio.
+            - **Atualização rápida:** O app sincroniza a cada 60s. Para forçar a busca imediata, use o botão **🔄 Atualizar**.
+            - **Saúde primeiro:** A consultoria do Coach AI auxilia nos treinos amadores e maratonas; em caso de dor aguda persistente, procure sempre um fisioterapeuta ou médico.
+            """
+        )
+
+    with tab_exp_termos:
+        st.markdown(
+            """
+            ##### 🏃 Termos Essenciais da Corrida:
+            - **Pace (Ritmo):** Tempo gasto para correr **1 quilômetro** (formato mm:ss /km).  
+              *Exemplo:* Pace de `05:30/km` significa que você leva 5 minutos e 30 segundos para completar cada km. **Quanto menor o número, mais rápido você está correndo!**
+            - **RPE (Escala de Borg / Percepção de Esforço):** Sigla de *Rating of Perceived Exertion*. É uma nota de **1 a 10** de quão cansativo o treino pareceu para você (1 = caminhada fácil, 5 = ritmo confortável contínuo, 8 = ritmo forte de prova, 10 = exaustão máxima).
+            - **FC (Frequência Cardíaca) & BPM:** Número de Batimentos Por Minuto do seu coração.
+            - **Longão (Long Run):** Treino mais longo da semana (feito no final de semana). O objetivo principal é construir resistência aeróbica e força mental, e não correr rápido.
+            - **Tiros / Treino Intervalado:** Treino que alterna corridas muito rápidas (tiros) com períodos de descanso parado ou trotando devagar. Serve para aumentar sua velocidade máxima e VO2 Máx.
+            - **Fartlek:** Jogo de velocidade livre ("brincar de correr rápido e devagar") no meio de uma rodagem contínua.
+
+            ---
+            ##### ❤️ Zonas de Frequência Cardíaca (Z1 a Z5):
+            - **Z1 (Regenerativo):** Trote levíssimo de recuperação pós-treino forte.
+            - **Z2 (Base Aeróbica pura):** Ritmo "conversacional" e confortável. Você consegue conversar sem perder o fôlego. Constrói a base do coração e queima gordura.
+            - **Z3 (Ritmo / Tempo Run):** Esforço moderado-firme contínuo (ritmo de prova de Meia Maratona ou Maratona).
+            - **Z4 (Limiar de Lactato / Threshold):** Ritmo forte sustentável por 30 a 60 minutos. A respiração fica bem pesada.
+            - **Z5 (VO2 Máx / Anaeróbico):** Esforço máximo, quase sem conseguir respirar, para tiros curtos.
+
+            ---
+            ##### 🏊🚴🏃 Termos de Triatlo (Multiesporte):
+            - **Brick (Transição):** Treino combinado em que você pedala forte e, logo em seguida, calça o tênis e sai correndo. Serve para ensinar seu corpo a correr com as "pernas pesadas de chumbo".
+            - **Cadência (RPM / SpM):**
+              - Na corrida: Passos por minuto (ideal entre 165 e 180 passos/min).
+              - Na bicicleta: Rotações por minuto dos pedais (ideal entre 85 e 95 RPM).
+            - **Distâncias de Prova de Triatlo:**
+              - *Sprint:* 750m Natação + 20km Ciclismo + 5km Corrida (rápido e intenso).
+              - *Olímpico / Standard:* 1.500m Natação + 40km Ciclismo + 10km Corrida.
+              - *Meio Ironman (70.3):* 1,9km Natação + 90km Ciclismo + 21,1km Corrida (total de 70,3 milhas / 113 km).
+              - *Ironman Completo (140.6):* 3,8km Natação + 180km Ciclismo + 42,2km Corrida (total de 140,6 milhas / 226 km).
+            """
+        )
 
 # ==============================================================================
 # ABAS PRINCIPAIS (5 ABAS COMPLETAS)
@@ -768,7 +805,7 @@ with tab_novo_treino:
             min_value=1,
             max_value=10,
             value=6,
-            help="1: Extremamente fácil (regenerativo) | 5: Ritmo confortável | 7-8: Ritmo de prova / limiar | 10: Esforço máximo exaustivo",
+            help="RPE (Rating of Perceived Exertion): Medida de 1 a 10 de cansaço. 1: Muito leve | 3: Zona 2 confortável | 5: Ritmo de Maratona | 7-8: Ritmo de prova / Limiar | 10: Exaustão máxima.",
         )
         
         rpe_labels = {
@@ -789,12 +826,14 @@ with tab_novo_treino:
             "Sensações e Notas do Atleta (Opcional)",
             placeholder="Ex: Treino sob calor de 28°C; pernas pesadas nos últimos 2km; hidratação a cada 3km; sem dores articulares.",
             height=130,
+            help="Anote sensações do treino: clima (sol/chuva/frio), dores musculares, terreno ou se o ritmo pareceu fácil ou difícil.",
         )
 
         btn_analisar = st.button(
             "🚀 Analisar Treino com Coach AI",
             type="primary",
             use_container_width=True,
+            help="Clique para enviar a imagem ao Gemini 2.5 Flash, extrair métricas e salvar no Google Sheets.",
         )
 
     # Feedback de Processamento Progressivo e Ação
@@ -854,16 +893,16 @@ with tab_novo_treino:
         st.markdown("### 📈 Métricas Extraídas da Sessão")
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         with m_col1:
-            st.metric("📏 Distância", f"{res.distancia_km:.2f} km")
+            st.metric("📏 Distância", f"{res.distancia_km:.2f} km", help="Quilometragem total percorrida no treino.")
         with m_col2:
-            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km")
+            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km", help="Pace (Ritmo): Tempo que você levou para completar cada km (minutos:segundos). Quanto menor, mais rápido!")
         with m_col3:
             fc_display = f"{res.fc_media} bpm" if res.fc_media > 0 else "Não detectada"
-            st.metric("❤️ FC Média", fc_display)
+            st.metric("❤️ FC Média", fc_display, help="Frequência Cardíaca média em Batimentos Por Minuto (BPM) captada pelo sensor.")
         with m_col4:
             minutos = int(res.tempo_min)
             segundos = int(round((res.tempo_min - minutos) * 60))
-            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
+            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s", help="Tempo total que você passou em movimento.")
 
         st.markdown(
             f"""
@@ -888,15 +927,15 @@ with tab_cronograma:
 
     col_btn_refresh_crono, col_btn_clear_crono, _ = st.columns([1.5, 1.5, 3])
     with col_btn_refresh_crono:
-        btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True)
+        btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True, help="Recarrega as sessões mais recentes diretamente da planilha do Google Sheets.")
         if btn_refresh_crono:
             st.cache_data.clear()
             st.rerun()
 
     with col_btn_clear_crono:
-        with st.popover("🗑️ Limpar Cronograma"):
+        with st.popover("🗑️ Limpar Cronograma", help="Clique para apagar os treinos agendados e começar uma planilha nova."):
             st.write("Deseja apagar todos os treinos agendados na aba 'Cronograma'?")
-            if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True):
+            if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True, help="Remove todas as sessões anteriores da aba Cronograma mantendo o cabeçalho."):
                 with st.spinner("Limpando sessões da planilha..."):
                     ok_cl, msg_cl = clear_cronograma_in_sheets()
                     if ok_cl:
@@ -929,13 +968,13 @@ with tab_cronograma:
 
         c_col1, c_col2, c_col3, c_col4 = st.columns(4)
         with c_col1:
-            st.metric("⏳ Pendentes", f"{pendentes} treinos")
+            st.metric("⏳ Pendentes", f"{pendentes} treinos", help="Sessões da semana que você ainda vai realizar.")
         with c_col2:
-            st.metric("✅ Concluídos", f"{concluidos} treinos")
+            st.metric("✅ Concluídos", f"{concluidos} treinos", help="Sessões que você já executou e marcou o check-in!")
         with c_col3:
-            st.metric("🏃 Km Concluídos", f"{km_feitos:.1f} / {km_planejados:.1f} km")
+            st.metric("🏃 Km Concluídos", f"{km_feitos:.1f} / {km_planejados:.1f} km", help="Volume total percorrido em km contra o volume planejado para a semana.")
         with c_col4:
-            st.metric("📊 Taxa de Adesão", f"{pct_conclusao * 100:.1f}%")
+            st.metric("📊 Taxa de Adesão", f"{pct_conclusao * 100:.1f}%", help="Porcentagem de fidelidade da sua execução em relação à planilha prescrita.")
 
         st.markdown("---")
 
@@ -971,7 +1010,12 @@ with tab_cronograma:
 
             col_checkin, _ = st.columns([1.5, 3])
             with col_checkin:
-                if st.button("✅ Marcar este Treino como Feito / Concluído", type="primary", use_container_width=True):
+                if st.button(
+                    "✅ Marcar este Treino como Feito / Concluído",
+                    type="primary",
+                    use_container_width=True,
+                    help="Terminou a corrida? Clique aqui para atualizar a linha do treino na planilha do Google Sheets com a data e horário exatos de conclusão!",
+                ):
                     with st.spinner("Atualizando status na planilha Google Sheets..."):
                         sucesso_ck, msg_ck = mark_workout_as_completed(proximo_id)
                         if sucesso_ck:
@@ -1050,13 +1094,13 @@ with tab_historico:
 
         tot_col1, tot_col2, tot_col3, tot_col4 = st.columns(4)
         with tot_col1:
-            st.metric("🏃 Volume Total Acumulado", f"{total_km:.2f} km")
+            st.metric("🏃 Volume Total Acumulado", f"{total_km:.2f} km", help="Quilometragem somada de todas as corridas registradas até hoje.")
         with tot_col2:
-            st.metric("🎯 Total de Sessões", f"{total_treinos} treinos")
+            st.metric("🎯 Total de Sessões", f"{total_treinos} treinos", help="Número total de atividades já analisadas e guardadas.")
         with tot_col3:
-            st.metric("❤️ FC Média Geral", f"{fc_global} bpm" if fc_global > 0 else "--")
+            st.metric("❤️ FC Média Geral", f"{fc_global} bpm" if fc_global > 0 else "--", help="Frequência cardíaca média histórica em Batimentos Por Minuto (BPM).")
         with tot_col4:
-            st.metric("📊 Média por Sessão", f"{km_por_treino:.2f} km")
+            st.metric("📊 Média por Sessão", f"{km_por_treino:.2f} km", help="Distância média percorrida em cada treino (volume dividido pelo total de sessões).")
 
         st.markdown("---")
 
@@ -1230,6 +1274,7 @@ with tab_planilha:
         "🏅 Modalidade Principal do Planejamento:",
         ["🏃 Corrida de Rua & Maratona", "🏊🚴🏃 Triatlo (Multiesporte: Natação, Ciclismo & Corrida)"],
         horizontal=True,
+        help="Selecione 'Corrida de Rua' para metas de 5k a 42k, ou 'Triatlo' para intercalar Natação, Ciclismo, Corrida e treinos combinados (Brick).",
     )
 
     col_p1, col_p2 = st.columns([1, 1], gap="large")
@@ -1245,12 +1290,13 @@ with tab_planilha:
                     "🏊🚴🏃 Ironman Completo 140.6 (3.8km Natação / 180km Ciclismo / 42.2km Corrida)",
                     "🏊🚴🏃 Condicionamento Multiesporte & Base Aeróbica Tri",
                 ],
+                help="Distância da sua prova alvo: Sprint (curta e explosiva), Olímpico (padrão dos Jogos), 70.3 (Meio Ironman / 113 km total) ou 140.6 (Ironman / 226 km total).",
             )
             disciplinas_selecionadas = st.multiselect(
                 "Disciplinas incluídas na sua rotina semanal:",
                 options=["Natação", "Ciclismo", "Corrida", "Transição Brick (Bike + Run)"],
                 default=["Natação", "Ciclismo", "Corrida", "Transição Brick (Bike + Run)"],
-                help="O treinador distribuirá os 7 dias alternando as disciplinas escolhidas de forma balanceada.",
+                help="Escolha quais esportes você quer na semana. 'Brick' é o treino de pedalar e sair correndo logo em seguida para adaptar as pernas.",
             )
             dias_semana = st.slider(
                 "📅 Quantas sessões de treino você deseja realizar na semana?",
@@ -1262,6 +1308,7 @@ with tab_planilha:
             dia_longao = st.selectbox(
                 "🚴 Qual o seu dia preferido para o treino longo (Bike longa ou Brick)?",
                 options=["Sábado", "Domingo", "Outro dia da semana"],
+                help="'Longão': o treino com maior tempo ou distância da semana (geralmente o pedal longo no final de semana).",
             )
         else:
             objetivo_selecionado = st.selectbox(
@@ -1274,6 +1321,7 @@ with tab_planilha:
                     "🫀 Construção Sólida de Base Aeróbica (Zona 2)",
                     "⚖️ Condicionamento Geral & Emagrecimento Saudável",
                 ],
+                help="Meta esportiva principal para o treinador dosar o volume (km) e a intensidade (pace) da semana.",
             )
             disciplinas_selecionadas = ["Corrida"]
             dias_semana = st.slider(
@@ -1286,6 +1334,7 @@ with tab_planilha:
             dia_longao = st.selectbox(
                 "🏃 Qual o seu dia preferido para o Treino Longo (Longão)?",
                 options=["Domingo", "Sábado", "Outro dia da semana"],
+                help="'Longão': a corrida com maior quilometragem da semana, feita em ritmo confortável (Zona 2) para construir resistência.",
             )
 
     with col_p2:
@@ -1296,15 +1345,22 @@ with tab_planilha:
                 "Bloco de Base Aeróbica (4 Semanas)",
                 "Ciclo de Polimento Pré-Prova (2 Semanas)",
             ],
+            help="Microciclo = prescrição detalhada dos próximos 7 dias. Bloco de Base = foco em construir fôlego aeróbico e resistência.",
         )
 
         obs_lesoes = st.text_area(
             "🩺 Observações Físicas, Dores Recentes ou Restrições:",
             placeholder="Ex: Leve desconforto na tíbia direita após treinos em asfalto; preferência por nadar às terças e quintas; sem lesões graves.",
             height=125,
+            help="Conte sobre dores musculares (canelite, joelho, fáscia plantar), dias em que não pode treinar ou se faz musculação.",
         )
 
-        btn_gerar_plano = st.button("🚀 Gerar Planilha de Treinos com Coach AI", type="primary", use_container_width=True)
+        btn_gerar_plano = st.button(
+            "🚀 Gerar Planilha de Treinos com Coach AI",
+            type="primary",
+            use_container_width=True,
+            help="O Gemini 2.5 Flash vai analisar seu histórico real da planilha e estruturar os próximos 7 dias sob medida.",
+        )
 
     if btn_gerar_plano:
         client = get_gemini_client()
