@@ -36,7 +36,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Estilização Geral e Fontes */
+    /* Estilização Geral e Tipografia */
     .main-title {
         font-size: 2.1rem;
         font-weight: 800;
@@ -60,9 +60,9 @@ st.markdown(
         color: #F8FAFC !important;
         border-radius: 12px;
         padding: 1.5rem;
-        margin: 1.5rem 0;
+        margin: 1.2rem 0;
         border-left: 6px solid #10B981;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
     }
     .coach-card h3 {
         color: #10B981 !important;
@@ -74,18 +74,18 @@ st.markdown(
     }
     .coach-card p {
         font-size: 1.05rem;
-        line-height: 1.6;
+        line-height: 1.65;
         color: #E2E8F0 !important;
     }
     .coach-badge {
         display: inline-block;
         background-color: rgba(16, 185, 129, 0.2);
         color: #34D399;
-        padding: 0.25rem 0.75rem;
+        padding: 0.3rem 0.85rem;
         border-radius: 9999px;
         font-size: 0.85rem;
         font-weight: 600;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.85rem;
     }
 
     /* Ajustes para Métricas em telas pequenas */
@@ -141,15 +141,37 @@ Ao analisar a imagem (print do Garmin Connect, Strava, Polar ou Coros):
 1. Extraia meticulosamente os números: distância (km), tempo total (min), ritmo médio (pace mm:ss) e frequência cardíaca média (FC em bpm).
 2. Analise a correlação entre os dados da imagem, a Percepção Subjetiva de Esforço (RPE na escala de Borg 1-10) e os comentários do atleta.
 3. Elabore um parecer técnico do treinador estruturado em três tópicos claros:
-   - [Diagnóstico do Treino]: Análise objetiva da execução em relação ao volume e ritmo.
-   - [Intensidade Cardíaca]: Avaliação da resposta fisiológica e eficiência cardiovascular.
-   - [Próximo Passo]: Orientação prática e prescritiva para a sessão seguinte (ex: descanso, rodagem leve Z1/Z2, ou hidratação/mobilidade).
+   - Diagnóstico do Treino: Análise objetiva da execução em relação ao volume e ritmo.
+   - Intensidade Cardíaca: Avaliação da resposta fisiológica e eficiência cardiovascular.
+   - Próximo Passo: Orientação prática e prescritiva para a sessão seguinte (ex: descanso, rodagem leve Z1/Z2, ou hidratação/mobilidade).
 Responda ESTRITAMENTE em conformidade com o esquema JSON solicitado.
 """
 
 # ==============================================================================
-# SERVIÇOS E CLIENTES COM CACHE (@st.cache_resource)
+# FUNÇÕES UTILITÁRIAS E CONVERSÃO NUMÉRICA RESILIENTE
 # ==============================================================================
+def parse_float_br(val: Any) -> float:
+    """Converte strings com vírgula ou ponto para float, prevenindo erros de formato local."""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return 0.0
+    if "." in s and "," in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 def get_secret_val(key: str, default: Any = None) -> Any:
     """Busca chave primeiro em st.secrets, depois em os.environ."""
     if key in st.secrets:
@@ -157,6 +179,9 @@ def get_secret_val(key: str, default: Any = None) -> Any:
     return os.environ.get(key, default)
 
 
+# ==============================================================================
+# SERVIÇOS E CLIENTES COM CACHE (@st.cache_resource)
+# ==============================================================================
 @st.cache_resource
 def get_gemini_client(api_key: Optional[str] = None) -> Optional[genai.Client]:
     """Inicializa e armazena em cache o cliente oficial do Google GenAI SDK."""
@@ -190,7 +215,7 @@ def get_gspread_client() -> Optional[gspread.Client]:
 
 
 def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspread.Worksheet]:
-    """Abre a planilha e garante a existência da aba 'Treinos' com cabeçalhos."""
+    """Abre a planilha e garante a existência da aba 'Treinos' com cabeçalhos estruturados."""
     try:
         sh = gc.open_by_url(sheet_url)
         try:
@@ -200,10 +225,15 @@ def get_or_create_worksheet(gc: gspread.Client, sheet_url: str) -> Optional[gspr
             ws.append_row(SHEET_COLUMNS)
             return ws
         
-        # Se a planilha estiver vazia, adiciona o cabeçalho
-        existing_values = ws.get_all_values()
-        if not existing_values or len(existing_values) == 0:
+        # Garante cabeçalho na linha 1 caso não exista
+        all_values = ws.get_all_values()
+        if not all_values or len(all_values) == 0:
             ws.append_row(SHEET_COLUMNS)
+        else:
+            primeira_linha = all_values[0]
+            if not primeira_linha or not any("Data" in str(c) for c in primeira_linha):
+                ws.insert_row(SHEET_COLUMNS, 1)
+
         return ws
     except Exception as e:
         st.error(f"Falha ao acessar a planilha do Google Sheets: {e}")
@@ -248,7 +278,7 @@ def append_workout_to_sheets(
 
 
 def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
-    """Carrega as atividades salvas no Google Sheets para um DataFrame do Pandas."""
+    """Carrega as atividades do Google Sheets de forma robusta e independente de locale."""
     sheet_url = get_secret_val("sheet_url")
     if not sheet_url:
         return None, "Configure o parâmetro 'sheet_url' em .streamlit/secrets.toml para carregar o histórico."
@@ -262,27 +292,47 @@ def load_workouts_from_sheets() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
         if not ws:
             return None, "Não foi possível conectar com a aba 'Treinos'."
 
-        rows = ws.get_all_records()
-        if not rows:
+        vals = ws.get_all_values()
+        if not vals or len(vals) <= 1:
             return pd.DataFrame(columns=SHEET_COLUMNS), None
 
-        df = pd.DataFrame(rows)
-        # Normalização de tipos numéricos
-        if "Distância (km)" in df.columns:
-            df["Distância (km)"] = pd.to_numeric(df["Distância (km)"], errors="coerce").fillna(0.0)
-        if "Tempo (min)" in df.columns:
-            df["Tempo (min)"] = pd.to_numeric(df["Tempo (min)"], errors="coerce").fillna(0.0)
-        if "FC Média (bpm)" in df.columns:
-            df["FC Média (bpm)"] = pd.to_numeric(df["FC Média (bpm)"], errors="coerce").fillna(0).astype(int)
-        if "RPE (1-10)" in df.columns:
-            df["RPE (1-10)"] = pd.to_numeric(df["RPE (1-10)"], errors="coerce").fillna(0).astype(int)
-        
-        # Tenta ordenar por data cronológica se possível
-        try:
-            df["_data_dt"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
-            df = df.sort_values(by="_data_dt", ascending=True).reset_index(drop=True)
-        except Exception:
-            pass
+        headers = vals[0]
+        rows = [r for r in vals[1:] if any(str(c).strip() for c in r)]
+
+        if not rows:
+            return pd.DataFrame(columns=headers), None
+
+        # Alinha número de colunas
+        num_cols = len(headers)
+        clean_rows = []
+        for r in rows:
+            if len(r) < num_cols:
+                r = r + [""] * (num_cols - len(r))
+            elif len(r) > num_cols:
+                r = r[:num_cols]
+            clean_rows.append(r)
+
+        df = pd.DataFrame(clean_rows, columns=headers)
+
+        # Conversão numérica resiliente
+        for c in df.columns:
+            if "Dist" in c:
+                df[c] = df[c].apply(parse_float_br)
+            elif "Tempo" in c:
+                df[c] = df[c].apply(parse_float_br)
+            elif "FC" in c:
+                df[c] = df[c].apply(parse_float_br).astype(int)
+            elif "RPE" in c:
+                df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
+
+        # Ordenação cronológica por data se disponível
+        data_col = next((c for c in df.columns if "Data" in c), None)
+        if data_col:
+            try:
+                df["_data_dt"] = pd.to_datetime(df[data_col], format="%d/%m/%Y", errors="coerce")
+                df = df.sort_values(by="_data_dt", ascending=True).reset_index(drop=True)
+            except Exception:
+                pass
 
         return df, None
     except Exception as e:
@@ -321,7 +371,6 @@ def analyze_workout_image(
         ),
     )
 
-    # Processamento seguro da resposta estruturada
     if hasattr(response, "parsed") and response.parsed is not None:
         return response.parsed
     elif hasattr(response, "text") and response.text:
@@ -343,7 +392,6 @@ with col_title:
     )
 
 with col_status:
-    # Indicador sutil de configuração
     api_ready = bool(get_secret_val("GEMINI_API_KEY"))
     sheet_ready = bool(get_secret_val("sheet_url")) and ("gcp_service_account" in st.secrets)
     
@@ -385,7 +433,6 @@ with tab_novo_treino:
             help="1: Extremamente fácil (regenerativo) | 5: Ritmo confortável | 7-8: Ritmo de prova / limiar | 10: Esforço máximo exaustivo",
         )
         
-        # Legenda dinâmica do RPE
         rpe_labels = {
             1: "1 - Muito Leve (Recuperação Ativa)",
             2: "2 - Leve (Conversacional tranquilo)",
@@ -406,19 +453,25 @@ with tab_novo_treino:
             height=130,
         )
 
-        btn_analisar = st.button("🚀 Analisar Treino com Coach AI", type="primary", use_container_width=True)
+        btn_analisar = st.button(
+            "🚀 Analisar Treino com Coach AI",
+            type="primary",
+            use_container_width=True,
+        )
 
-    # Ação de Análise
+    # Feedback de Processamento Progressivo e Ação
     if btn_analisar:
         if not uploaded_file:
             st.warning("⚠️ Por favor, selecione e faça o upload de um print de corrida antes de iniciar a análise.")
         else:
             client = get_gemini_client()
             if not client:
-                st.error("🔑 Chave de API do Gemini não configurada! Adicione `GEMINI_API_KEY` em `.streamlit/secrets.toml`.")
+                st.error("🔑 Chave de API do Gemini não configurada! Verifique `GEMINI_API_KEY` em `.streamlit/secrets.toml`.")
             else:
-                with st.spinner("🤖 O Treinador está avaliando seu print, métricas cardíacas e gerando o parecer técnico..."):
+                # Controle visual de processamento em etapas claras
+                with st.status("🏃 Processando treino com o Coach AI...", expanded=True) as status_box:
                     try:
+                        status_box.write("📤 **Etapa 1/3:** Preparando imagem e enviando dados para o Gemini 2.5 Flash...")
                         image_bytes = uploaded_file.getvalue()
                         mime_type = uploaded_file.type or "image/jpeg"
                         
@@ -429,45 +482,67 @@ with tab_novo_treino:
                             user_notes=user_notes,
                             gemini_client=client,
                         )
+                        
+                        status_box.write("🧠 **Etapa 2/3:** Métricas extraídas e diagnóstico técnico formulado pelo treinador!")
+                        
+                        status_box.write("💾 **Etapa 3/3:** Sincronizando dados e parecer com o Google Sheets...")
+                        salvo, msg_sheets = append_workout_to_sheets(resultado, rpe, user_notes)
+                        
+                        if salvo:
+                            status_box.update(
+                                label="✅ Análise concluída e registrada no Google Sheets!",
+                                state="complete",
+                                expanded=False,
+                            )
+                        else:
+                            status_box.update(
+                                label=f"⚠️ Treino analisado, mas atenção na planilha: {msg_sheets}",
+                                state="error",
+                                expanded=True,
+                            )
 
-                        # Exibição das Métricas Extraídas em Cards
-                        st.markdown("---")
-                        st.markdown("### 📈 Métricas Oficiais Extraídas")
-                        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-                        with m_col1:
-                            st.metric("📏 Distância", f"{resultado.distancia_km:.2f} km")
-                        with m_col2:
-                            st.metric("⏱️ Pace Médio", f"{resultado.pace_medio} /km")
-                        with m_col3:
-                            fc_display = f"{resultado.fc_media} bpm" if resultado.fc_media > 0 else "Não detectada"
-                            st.metric("❤️ FC Média", fc_display)
-                        with m_col4:
-                            minutos = int(resultado.tempo_min)
-                            segundos = int((resultado.tempo_min - minutos) * 60)
-                            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
-
-                        # Card de Destaque: Parecer Técnico do Treinador
-                        st.markdown(
-                            f"""
-                            <div class="coach-card">
-                                <span class="coach-badge">🎯 {resultado.zona_predominante} • Data: {resultado.data}</span>
-                                <h3>📋 Parecer Técnico de Consultoria</h3>
-                                <p>{resultado.parecer_treinador.replace(chr(10), '<br>')}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                        # Persistência no Google Sheets
-                        with st.spinner("💾 Persistindo sessão no Google Sheets..."):
-                            salvo, msg_sheets = append_workout_to_sheets(resultado, rpe, user_notes)
-                            if salvo:
-                                st.success(f"✅ {msg_sheets}")
-                            else:
-                                st.warning(f"⚠️ Análise concluída com sucesso, porém: {msg_sheets}")
+                        # Armazena na sessão para persistência visual
+                        st.session_state["ultimo_treino"] = resultado
+                        st.session_state["sheets_salvo"] = salvo
+                        st.session_state["sheets_msg"] = msg_sheets
 
                     except Exception as e:
-                        st.error(f"❌ Ocorreu um erro durante o processamento da atividade: {str(e)}")
+                        status_box.update(label="❌ Erro durante o processamento da atividade", state="error", expanded=True)
+                        st.error(f"Detalhes do erro: {str(e)}")
+
+    # Exibição dos Resultados Análises (se disponível na sessão ou recém-analisado)
+    if "ultimo_treino" in st.session_state:
+        res: TreinoExtracao = st.session_state["ultimo_treino"]
+
+        st.markdown("---")
+        st.markdown("### 📈 Métricas Extraídas da Sessão")
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        with m_col1:
+            st.metric("📏 Distância", f"{res.distancia_km:.2f} km")
+        with m_col2:
+            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km")
+        with m_col3:
+            fc_display = f"{res.fc_media} bpm" if res.fc_media > 0 else "Não detectada"
+            st.metric("❤️ FC Média", fc_display)
+        with m_col4:
+            minutos = int(res.tempo_min)
+            segundos = int(round((res.tempo_min - minutos) * 60))
+            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
+
+        # Card de Destaque com o Parecer Técnico do Treinador
+        st.markdown(
+            f"""
+            <div class="coach-card">
+                <span class="coach-badge">🎯 {res.zona_predominante} • Sessão de {res.data}</span>
+                <h3>📋 Parecer Técnico de Consultoria</h3>
+                <p>{res.parecer_treinador.replace(chr(10), '<br>')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if st.session_state.get("sheets_salvo"):
+            st.success("💾 Atividade registrada com sucesso na aba 'Treinos' da sua planilha!")
 
 # ------------------------------------------------------------------------------
 # ABA 2: HISTÓRICO E GRÁFICOS
@@ -475,9 +550,9 @@ with tab_novo_treino:
 with tab_historico:
     st.markdown("### 📊 Histórico de Atividades & Evolução Fisiológica")
     
-    col_btn_refresh, _ = st.columns([1, 4])
+    col_btn_refresh, _ = st.columns([1.5, 4])
     with col_btn_refresh:
-        refresh = st.button("🔄 Atualizar Dados", use_container_width=True)
+        btn_refresh = st.button("🔄 Atualizar / Recarregar Planilha", use_container_width=True)
 
     df_treinos, erro_carregamento = load_workouts_from_sheets()
 
@@ -486,49 +561,53 @@ with tab_historico:
         st.markdown(
             """
             > **Dica para ativação completa:**
-            > 1. Crie uma planilha no Google Sheets com uma aba chamada `Treinos`.
-            > 2. Compartilhe a planilha com o e-mail da sua Service Account como **Editor**.
-            > 3. Configure a URL da planilha e o bloco de credenciais em `.streamlit/secrets.toml`.
+            > 1. Verifique se a URL da planilha e o bloco `[gcp_service_account]` estão preenchidos no `.streamlit/secrets.toml`.
+            > 2. Certifique-se de que a planilha foi compartilhada como **Editor** com o `client_email` da Service Account.
             """
         )
     elif df_treinos is None or df_treinos.empty:
         st.warning("Nenhum treino registrado ainda na planilha. Registre sua primeira atividade na aba 'Novo Treino'!")
     else:
         # Métricas Globais Consolidadas
-        total_km = df_treinos["Distância (km)"].sum()
+        col_dist = next((c for c in df_treinos.columns if "Dist" in c), "Distância (km)")
+        col_fc = next((c for c in df_treinos.columns if "FC" in c), "FC Média (bpm)")
+        
+        total_km = df_treinos[col_dist].sum()
         total_treinos = len(df_treinos)
         
-        # Cálculo de FC média desconsiderando zeros
-        fc_series = df_treinos[df_treinos["FC Média (bpm)"] > 0]["FC Média (bpm)"]
-        fc_global = int(fc_series.mean()) if not fc_series.empty else 0
+        # Média de FC ignorando zeros
+        fc_validos = df_treinos[df_treinos[col_fc] > 0][col_fc]
+        fc_global = int(fc_validos.mean()) if not fc_validos.empty else 0
+        km_por_treino = (total_km / total_treinos) if total_treinos > 0 else 0
 
         tot_col1, tot_col2, tot_col3, tot_col4 = st.columns(4)
         with tot_col1:
-            st.metric("🏃 Volume Total", f"{total_km:.1f} km")
+            st.metric("🏃 Volume Total Acumulado", f"{total_km:.2f} km")
         with tot_col2:
             st.metric("🎯 Total de Sessões", f"{total_treinos} treinos")
         with tot_col3:
             st.metric("❤️ FC Média Geral", f"{fc_global} bpm" if fc_global > 0 else "--")
         with tot_col4:
-            km_por_treino = (total_km / total_treinos) if total_treinos > 0 else 0
-            st.metric("📊 Média por Sessão", f"{km_por_treino:.1f} km")
+            st.metric("📊 Média por Sessão", f"{km_por_treino:.2f} km")
 
         st.markdown("---")
 
         # Gráficos Analíticos
         tab_g1, tab_g2 = st.columns(2)
 
+        data_col = next((c for c in df_treinos.columns if "Data" in c), "Data")
+
         with tab_g1:
-            st.markdown("#### 🏃 Volume de Quilometragem por Treino")
+            st.markdown("#### 🏃 Volume de Rodagem por Treino")
             fig_volume = px.bar(
                 df_treinos,
-                x="Data",
-                y="Distância (km)",
-                text_auto=".1f",
-                color="Distância (km)",
+                x=data_col,
+                y=col_dist,
+                text_auto=".2f",
+                color=col_dist,
                 color_continuous_scale="Viridis",
-                labels={"Distância (km)": "Distância (km)", "Data": "Data do Treino"},
-                title="Volume de Rodagem (km)",
+                labels={col_dist: "Distância (km)", data_col: "Data"},
+                title="Volume por Sessão (km)",
             )
             fig_volume.update_layout(
                 margin=dict(l=20, r=20, t=40, b=20),
@@ -538,32 +617,34 @@ with tab_historico:
             st.plotly_chart(fig_volume, use_container_width=True)
 
         with tab_g2:
-            st.markdown("#### ❤️ Evolução da Frequência Cardíaca Média")
-            df_fc = df_treinos[df_treinos["FC Média (bpm)"] > 0]
+            st.markdown("#### ❤️ Monitoramento Cardiovascular")
+            df_fc = df_treinos[df_treinos[col_fc] > 0]
             if not df_fc.empty:
                 fig_fc = px.line(
                     df_fc,
-                    x="Data",
-                    y="FC Média (bpm)",
+                    x=data_col,
+                    y=col_fc,
                     markers=True,
-                    labels={"FC Média (bpm)": "FC Média (bpm)", "Data": "Data do Treino"},
-                    title="Monitoramento Cardiovascular",
+                    labels={col_fc: "FC Média (bpm)", data_col: "Data"},
+                    title="Evolução da FC Média",
                 )
-                fig_fc.update_traces(line_color="#EF4444", line_width=3, marker=dict(size=8, color="#B91C1C"))
-                fig_fc.update_layout(margin=dict(l=20, r=20, t=40, b=20), xaxis_tickangle=-45)
+                fig_fc.update_traces(
+                    line_color="#EF4444",
+                    line_width=3,
+                    marker=dict(size=8, color="#B91C1C"),
+                )
+                fig_fc.update_layout(
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    xaxis_tickangle=-45,
+                )
                 st.plotly_chart(fig_fc, use_container_width=True)
             else:
-                st.info("Nenhuma frequência cardíaca registrada para exibir o gráfico temporal.")
+                st.info("Nenhuma frequência cardíaca registrada ainda para traçar a evolução temporal.")
 
-        # Tabela Detalhada com visualizador Pandas
+        # Tabela Detalhada com visualizador interativo
         st.markdown("---")
-        st.markdown("#### 📋 Registro Geral de Atividades")
-        cols_to_show = [
-            c for c in [
-                "Data", "Distância (km)", "Tempo (min)", "Pace Médio",
-                "FC Média (bpm)", "Zona Predominante", "RPE (1-10)", "Notas do Atleta", "Parecer do Treinador"
-            ] if c in df_treinos.columns
-        ]
+        st.markdown("#### 📋 Tabela Geral de Atividades")
+        cols_to_show = [c for c in SHEET_COLUMNS if c in df_treinos.columns]
         st.dataframe(
             df_treinos[cols_to_show],
             use_container_width=True,
