@@ -131,7 +131,7 @@ st.markdown(
         }
     }
 
-    /* Ajustes para Métricas em telas pequenas */
+    /* Ajustes para Métricas e Responsividade Mobile */
     [data-testid="stMetricValue"] {
         font-size: 1.8rem !important;
         font-weight: 700;
@@ -139,6 +139,50 @@ st.markdown(
     [data-testid="stMetricLabel"] {
         font-size: 0.9rem !important;
         color: #64748B;
+    }
+
+    /* Otimizações Específicas para Smartphones / Telas Pequenas */
+    @media (max-width: 768px) {
+        .main-title {
+            font-size: 1.65rem !important;
+        }
+        .main-subtitle {
+            font-size: 0.92rem !important;
+            margin-bottom: 0.9rem !important;
+        }
+        .coach-card, .next-workout-card, .plan-card {
+            padding: 1.1rem !important;
+            border-radius: 10px !important;
+            margin: 0.8rem 0 !important;
+        }
+        .next-workout-card h3 {
+            font-size: 1.25rem !important;
+        }
+        [data-testid="stMetricValue"] {
+            font-size: 1.35rem !important;
+        }
+        [data-testid="stMetricLabel"] {
+            font-size: 0.78rem !important;
+        }
+        /* Botões com altura ideal de toque (min 48px) */
+        .stButton > button {
+            min-height: 48px !important;
+            font-size: 1rem !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }
+        /* Abas com scroll horizontal suave sem quebrar layout */
+        div[data-baseweb="tab-list"] {
+            gap: 4px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+        div[data-baseweb="tab"] {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            font-size: 0.88rem !important;
+            white-space: nowrap !important;
+        }
     }
     </style>
     """,
@@ -645,6 +689,29 @@ with col_status:
     else:
         st.caption("🟡 **Modo Parcial / Demo**")
 
+# Expander de Apoio e Guia para o Atleta / Celular
+with st.expander("📱 Dica para o Celular & Guia Rápido do Atleta (Clique para abrir)"):
+    st.markdown(
+        """
+        ##### 📲 Como transformar em app no seu celular:
+        - **No iPhone (Safari):** Toque no ícone de compartilhar (quadrado com seta) e selecione **"Adicionar à Tela de Início"**.
+        - **No Android (Chrome):** Toque nos 3 pontinhos e selecione **"Adicionar à tela inicial"** ou **"Instalar aplicativo"**.
+
+        ---
+        ##### 🏃 Guia em 4 Passos:
+        1. **📅 Ver o Treino do Dia:** Na aba *Treino Atual & Cronograma*, veja o que está agendado e como executar.
+        2. **✅ Fazer Check-in:** Terminou a corrida? Clique no botão *Marcar como Feito* para atualizar sua planilha.
+        3. **📤 Subir o Print (Opcional):** Na aba *Novo Treino*, envie o print do Strava ou Garmin para receber o parecer técnico da IA.
+        4. **💬 Conversar com o Coach:** Na aba *Conversar com o Coach*, tire dúvidas sobre ritmo, dores, descanso e nutrição.
+
+        ---
+        ##### ⚠️ Dicas e Limites:
+        - **Prints nítidos:** O print deve mostrar pelo menos distância, tempo total e pace médio.
+        - **Atualização rápida:** O app sincroniza a cada 60s. Para forçar a busca imediata, use o botão **🔄 Atualizar**.
+        - **Saúde primeiro:** A consultoria do Coach AI auxilia nos treinos amadores e maratonas; em caso de dor aguda persistente, procure sempre um fisioterapeuta ou médico.
+        """
+    )
+
 # ==============================================================================
 # ABAS PRINCIPAIS (5 ABAS COMPLETAS)
 # ==============================================================================
@@ -978,7 +1045,11 @@ with tab_historico:
                 coloraxis_showscale=False,
                 xaxis_tickangle=-45,
             )
-            st.plotly_chart(fig_volume, use_container_width=True)
+            st.plotly_chart(
+                fig_volume,
+                use_container_width=True,
+                config={"displayModeBar": False, "scrollZoom": False, "responsive": True},
+            )
 
         with tab_g2:
             st.markdown("#### ❤️ Monitoramento Cardiovascular")
@@ -1001,7 +1072,11 @@ with tab_historico:
                     margin=dict(l=20, r=20, t=40, b=20),
                     xaxis_tickangle=-45,
                 )
-                st.plotly_chart(fig_fc, use_container_width=True)
+                st.plotly_chart(
+                    fig_fc,
+                    use_container_width=True,
+                    config={"displayModeBar": False, "scrollZoom": False, "responsive": True},
+                )
             else:
                 st.info("Nenhuma frequência cardíaca registrada ainda para traçar a evolução temporal.")
 
