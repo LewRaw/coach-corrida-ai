@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   nome text,
   modalidade_preferida text DEFAULT 'Corrida',
   objetivo_principal text,
+  esportes_ativos text[] DEFAULT ARRAY['Corrida'],
+  nivel_experiencia text DEFAULT 'Intermediário',
+  dias_disponiveis integer DEFAULT 4,
+  pwa_aviso_dispensado boolean DEFAULT false,
+  onboarding_concluido boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

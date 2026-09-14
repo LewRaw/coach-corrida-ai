@@ -194,6 +194,73 @@ st.markdown(
         padding: 0.75rem 1rem;
         margin-bottom: 1.25rem;
     }
+
+    /* Banner PWA Mobile Friendly */
+    .pwa-card {
+        background: linear-gradient(135deg, #0F172A 0%, #0369A1 100%);
+        border: 1px solid #38BDF8;
+        border-radius: 14px;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.25);
+        color: #F8FAFC !important;
+    }
+    .pwa-card h4 {
+        color: #38BDF8 !important;
+        font-weight: 700;
+        margin-top: 0 !important;
+        font-size: 1.15rem;
+    }
+    .pwa-card p {
+        color: #E2E8F0 !important;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    .pwa-os-box {
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 10px;
+        padding: 0.9rem;
+        margin-top: 0.4rem;
+    }
+
+    /* Box O Porquê do App (Propósito) */
+    .purpose-box {
+        background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+        border: 1px solid #818CF8;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.1rem;
+        color: #F8FAFC !important;
+    }
+    .purpose-box h4 {
+        color: #A5B4FC !important;
+        margin-top: 0 !important;
+        font-size: 1.18rem;
+    }
+    .purpose-box p, .purpose-box li {
+        color: #E2E8F0 !important;
+        font-size: 0.94rem;
+        line-height: 1.6;
+    }
+    .purpose-box ul {
+        margin-bottom: 0.4rem;
+        padding-left: 1.2rem;
+    }
+
+    /* Chips de Esportes Ativos */
+    .sport-pill {
+        display: inline-block;
+        background: rgba(99, 102, 241, 0.18);
+        border: 1px solid rgba(99, 102, 241, 0.45);
+        color: #818CF8;
+        padding: 0.2rem 0.6rem;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        margin-right: 0.3rem;
+        margin-bottom: 0.3rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -227,6 +294,37 @@ CRONOGRAMA_COLUMNS = [
     "Status",
     "Data Conclusão",
     "Criado Em",
+]
+
+# ==============================================================================
+# OPÇÕES DE ESPORTES, NÍVEIS E METAS (SISTEMA MULTIESPORTE)
+# ==============================================================================
+ESPORTES_OPCOES = [
+    "🏃 Corrida de Rua & Maratona",
+    "🚴 Ciclismo / Bike",
+    "🏊 Natação",
+    "⚽ Futebol",
+    "🏊🚴🏃 Especialista em Triatlo",
+    "🏀 Basquete",
+    "🏐 Vôlei",
+    "🏋️ Musculação / Fortalecimento",
+]
+
+NIVEIS_EXPERIENCIA = [
+    "Iniciante (Começando agora / Sedentário)",
+    "Intermediário (Já pratico com regularidade)",
+    "Avançado / Competitivo (Busca de performance & pódio)",
+]
+
+METAS_OPCOES = [
+    "🏃 Estreia em Corrida (5 km ou 10 km)",
+    "🏃 Meia Maratona (21.1 km)",
+    "🏆 Maratona Completa (42.2 km)",
+    "🏊🚴🏃 Triatlo (Sprint, Olímpico ou 70.3)",
+    "🚴 Evolução no Ciclismo & Resistência",
+    "⚽ Melhorar Explosão e Resistência para Futebol / Basquete / Vôlei",
+    "⚖️ Condicionamento Físico Geral & Emagrecimento",
+    "🫀 Saúde Cardiovascular & Longevidade",
 ]
 
 # ==============================================================================
@@ -267,15 +365,16 @@ class PlanoSemanalPrescrito(BaseModel):
     orientacoes_gerais: str = Field(description="Orientações essenciais de recuperação, hidratação, sono e prevenção de lesões para esta semana")
 
 COACH_SYSTEM_INSTRUCTION = """
-Você é um Treinador de Corrida de Rua e Maratonas de elite com mais de 20 anos de experiência na preparação de atletas amadores e competitivos.
+Você é um Treinador de Corrida de Rua, Triatlo e Multiesporte de elite com mais de 20 anos de experiência na preparação de atletas amadores e competitivos.
 Sua comunicação é direta, motivadora, técnica e sem rodeios.
-Ao analisar a imagem (print do Garmin Connect, Strava, Polar ou Coros):
+Ao analisar a imagem (print do Garmin Connect, Strava, Polar, Coros ou Apple Fitness):
 1. Extraia meticulosamente os números: distância (km), tempo total (min), ritmo médio (pace mm:ss) e frequência cardíaca média (FC em bpm).
-2. Analise a correlação entre os dados da imagem, a Percepção Subjetiva de Esforço (RPE na escala de Borg 1-10) e os comentários do atleta.
-3. Elabore um parecer técnico do treinador estruturado em três tópicos claros:
-   - Diagnóstico do Treino: Análise objetiva da execução em relação ao volume e ritmo.
-   - Intensidade Cardíaca: Avaliação da resposta fisiológica e eficiência cardiovascular.
-   - Próximo Passo: Orientação prática e prescritiva para a sessão seguinte (ex: descanso, rodagem leve Z1/Z2, ou hidratação/mobilidade).
+2. Identifique a modalidade da atividade (Corrida, Ciclismo, Natação ou Multiesporte/Força).
+3. Analise a correlação entre os dados da imagem, a Percepção Subjetiva de Esforço (RPE na escala de Borg 1-10) e os comentários do atleta.
+4. Elabore um parecer técnico do treinador estruturado em três tópicos claros:
+   - Diagnóstico do Treino: Análise objetiva da execução em relação ao volume, ritmo/intensidade e modalidade.
+   - Intensidade Cardíaca: Avaliação da resposta fisiológica, zonas de esforço e eficiência cardiovascular.
+   - Próximo Passo: Orientação prática e prescritiva para a sessão seguinte (ex: descanso, rodagem regenerativa Z1/Z2, soltura em bike/natação ou mobilidade/musculação).
 Responda ESTRITAMENTE em conformidade com o esquema JSON solicitado.
 """
 
@@ -665,6 +764,79 @@ def get_current_user_id() -> Optional[str]:
     return u.get("id") if u else None
 
 
+def get_user_profile(user_id: str) -> Dict[str, Any]:
+    """Retorna o perfil do atleta diretamente do Supabase."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return {}
+    try:
+        res = sb.table("profiles").select("*").eq("id", user_id).single().execute()
+        if res and res.data:
+            return res.data
+    except Exception:
+        pass
+    return {}
+
+
+def update_user_profile(user_id: str, updates: Dict[str, Any]) -> bool:
+    """Atualiza o perfil do atleta no Supabase e sincroniza o session_state."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False
+    try:
+        sb.table("profiles").update(updates).eq("id", user_id).execute()
+        if "user_profile" in st.session_state and st.session_state["user_profile"]:
+            st.session_state["user_profile"].update(updates)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao atualizar perfil no Supabase: {e}")
+        return False
+
+
+def get_athlete_profile() -> Dict[str, Any]:
+    """Retorna o perfil do atleta (do Supabase para logados ou padrão/visitante)."""
+    user = get_current_user()
+    if not user:
+        if "guest_profile" not in st.session_state:
+            st.session_state["guest_profile"] = {
+                "nome": "Atleta Visitante",
+                "esportes_ativos": ["🏃 Corrida de Rua & Maratona"],
+                "nivel_experiencia": "Intermediário (Já pratico com regularidade)",
+                "dias_disponiveis": 4,
+                "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
+                "pwa_aviso_dispensado": st.session_state.get("pwa_aviso_dispensado", False),
+                "onboarding_concluido": True,
+            }
+        return st.session_state["guest_profile"]
+
+    if "user_profile" not in st.session_state or not st.session_state["user_profile"]:
+        p = get_user_profile(user["id"])
+        if not p:
+            p = {
+                "id": user["id"],
+                "nome": user.get("nome", "Atleta"),
+                "email": user.get("email", ""),
+                "esportes_ativos": ["🏃 Corrida de Rua & Maratona"],
+                "nivel_experiencia": "Intermediário (Já pratico com regularidade)",
+                "dias_disponiveis": 4,
+                "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
+                "pwa_aviso_dispensado": False,
+                "onboarding_concluido": False,
+            }
+        st.session_state["user_profile"] = p
+    return st.session_state["user_profile"]
+
+
+def dismiss_pwa_banner():
+    """Marca aviso de salvar como app na tela inicial como dispensado."""
+    st.session_state["pwa_aviso_dispensado"] = True
+    user = get_current_user()
+    if user:
+        update_user_profile(user["id"], {"pwa_aviso_dispensado": True})
+        if "user_profile" in st.session_state and st.session_state["user_profile"]:
+            st.session_state["user_profile"]["pwa_aviso_dispensado"] = True
+
+
 def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
     """Autentica o atleta por e-mail e senha no Supabase Auth."""
     sb = get_supabase_client()
@@ -673,10 +845,22 @@ def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
     try:
         res = sb.auth.sign_in_with_password({"email": email.strip(), "password": password})
         if res and res.user:
+            uid = str(res.user.id)
             st.session_state["user"] = {
-                "id": str(res.user.id),
+                "id": uid,
                 "email": res.user.email,
             }
+            # Carregar perfil do Supabase
+            sb_admin = get_supabase_admin() or sb
+            try:
+                prof_res = sb_admin.table("profiles").select("*").eq("id", uid).single().execute()
+                if prof_res and prof_res.data:
+                    st.session_state["user_profile"] = prof_res.data
+                    st.session_state["user"]["nome"] = prof_res.data.get("nome", "")
+                    if prof_res.data.get("pwa_aviso_dispensado") is not None:
+                        st.session_state["pwa_aviso_dispensado"] = prof_res.data.get("pwa_aviso_dispensado")
+            except Exception:
+                pass
             st.cache_data.clear()
             return True, "Login realizado com sucesso!"
         return False, "Credenciais inválidas."
@@ -697,12 +881,20 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
         if res and res.user:
             user_id = str(res.user.id)
             sb_admin = get_supabase_admin() or sb
+            initial_profile = {
+                "id": user_id,
+                "email": email.strip(),
+                "nome": name.strip(),
+                "modalidade_preferida": "Corrida",
+                "esportes_ativos": ["🏃 Corrida de Rua & Maratona"],
+                "nivel_experiencia": "Intermediário (Já pratico com regularidade)",
+                "dias_disponiveis": 4,
+                "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
+                "pwa_aviso_dispensado": False,
+                "onboarding_concluido": False,
+            }
             try:
-                sb_admin.table("profiles").upsert({
-                    "id": user_id,
-                    "email": email.strip(),
-                    "nome": name.strip(),
-                }).execute()
+                sb_admin.table("profiles").upsert(initial_profile).execute()
             except Exception:
                 pass
             st.session_state["user"] = {
@@ -710,6 +902,8 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
                 "email": res.user.email,
                 "nome": name.strip(),
             }
+            st.session_state["user_profile"] = initial_profile
+            st.session_state["show_onboarding"] = True
             st.cache_data.clear()
             return True, "Conta criada com sucesso! Você já está conectado."
         return False, "Não foi possível criar a conta."
@@ -727,6 +921,11 @@ def auth_sign_out():
             pass
     if "user" in st.session_state:
         del st.session_state["user"]
+    if "user_profile" in st.session_state:
+        del st.session_state["user_profile"]
+    st.session_state.pop("pwa_aviso_dispensado", None)
+    st.session_state.pop("onboarding_shown", None)
+    st.session_state.pop("show_onboarding", None)
     st.cache_data.clear()
 
 
@@ -1045,28 +1244,54 @@ def analyze_workout_image(
 # ==============================================================================
 # CABEÇALHO DA INTERFACE
 # ==============================================================================
-col_title, col_status = st.columns([3.2, 1.8])
+col_title, col_status = st.columns([3.0, 2.0])
 with col_title:
     st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="main-subtitle">Consultoria de corrida e triatlo, análise de prints, cronograma inteligente e check-in com Gemini 2.5 & Supabase Cloud</div>',
+        '<div class="main-subtitle">Treinador inteligente multi-esportes: corrida, triatlo, bike, natação, futebol e mais com Gemini 2.5 & Supabase</div>',
         unsafe_allow_html=True,
     )
 
 with col_status:
     user = get_current_user()
+    perf = get_athlete_profile()
+    esportes_list = perf.get("esportes_ativos") or ["🏃 Corrida de Rua & Maratona"]
+
     if user:
-        st.markdown(f"👤 **{user.get('email', 'Atleta')}**")
-        st.caption("🟢 **Supabase Cloud (SaaS)**")
-        if st.button("🚪 Sair", key="btn_logout_top", help="Desconectar desta conta", use_container_width=True):
-            auth_sign_out()
-            st.rerun()
+        nome_display = perf.get("nome") or user.get("nome") or user.get("email", "Atleta")
+        st.markdown(f"👤 **{nome_display}**")
+        
+        # Pílulas dos esportes ativos
+        pills = []
+        for esp in esportes_list[:3]:
+            partes = esp.split()
+            emoji_tag = partes[0]
+            nome_curto = partes[1] if len(partes) > 1 and len(partes[1]) <= 10 else ""
+            pills.append(f'<span class="sport-pill">{emoji_tag} {nome_curto}</span>')
+        pills_html = " ".join(pills)
+        if len(esportes_list) > 3:
+            pills_html += f' <span class="sport-pill">+{len(esportes_list) - 3}</span>'
+        st.markdown(pills_html, unsafe_allow_html=True)
+
+        col_h1, col_h2 = st.columns([1.2, 1])
+        with col_h1:
+            if st.button("⚙️ Focos", key="btn_focos_header", use_container_width=True, help="Alterar meus esportes, dias e meta"):
+                modal_meus_esportes()
+        with col_h2:
+            if st.button("🚪 Sair", key="btn_logout_top", help="Desconectar desta conta", use_container_width=True):
+                auth_sign_out()
+                st.rerun()
     else:
         sb_ready = bool(get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL"))
         if sb_ready:
             st.caption("☁️ **Modo Visitante (Planilha)**")
-        if st.button("🔑 Entrar / Criar Conta", type="primary", use_container_width=True, key="btn_open_auth"):
-            modal_auth()
+        col_b1, col_b2 = st.columns([1.2, 1.2])
+        with col_b1:
+            if st.button("🔑 Entrar", type="primary", use_container_width=True, key="btn_open_auth"):
+                modal_auth()
+        with col_b2:
+            if st.button("⚙️ Focos", use_container_width=True, key="btn_focos_guest", help="Configurar seus esportes e metas"):
+                modal_meus_esportes()
 
 # ==============================================================================
 # MODAIS POPUP (STREAMLIT DIALOGS)
@@ -1115,6 +1340,162 @@ def modal_auth():
                         st.rerun()
                     else:
                         st.error(msg_reg)
+
+
+@st.dialog("🎯 Boas-vindas ao Coach AI: O Porquê & Seus Esportes", width="large")
+def modal_onboarding():
+    st.markdown(
+        """
+        <div class="purpose-box">
+            <h4>💡 O Porquê deste App: Treinador Multi-Esportes Integrado</h4>
+            <p>
+                <strong>Seu corpo não treina em compartimentos isolados.</strong> Se você joga futebol na quarta-feira, 
+                pedala no sábado e faz fortalecimento, seu sistema cardiovascular e neuromuscular acumula uma carga cumulativa que afeta diretamente sua corrida e recuperação.
+            </p>
+            <ul>
+                <li><strong>Carga Cumulativa Real:</strong> O Coach AI integra todas as suas atividades para prescrever treinos precisos e dosar o descanso exato.</li>
+                <li><strong>Prevenção de Lesões:</strong> Evita overtraining e sobrecarga articular ajustando o volume quando você pratica outros esportes.</li>
+                <li><strong>Treinamento Cruzado:</strong> Usa modalidades de baixo impacto (ciclismo e natação) para construir resistência aeróbica e acelerar sua corrida.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("#### ⚙️ Configure seu Perfil de Atleta:")
+    st.caption("Você pode alterar esses focos a qualquer momento no botão **'⚙️ Meus Esportes'**!")
+
+    uid = get_current_user_id()
+    perf = get_athlete_profile()
+    esportes_atuais = perf.get("esportes_ativos") or ["🏃 Corrida de Rua & Maratona"]
+    esportes_validos = [e for e in esportes_atuais if e in ESPORTES_OPCOES] or [ESPORTES_OPCOES[0]]
+
+    escolha_esportes = st.multiselect(
+        "Quais esportes você pratica ou deseja incluir na sua rotina semanal?",
+        options=ESPORTES_OPCOES,
+        default=esportes_validos,
+        help="Selecione corrida, bike, natação, futebol, triatlo, etc. O Coach levará todos em consideração.",
+    )
+
+    col_ob1, col_ob2 = st.columns(2)
+    with col_ob1:
+        dias_ob = st.slider(
+            "📅 Quantos dias por semana você deseja treinar?",
+            min_value=2,
+            max_value=7,
+            value=int(perf.get("dias_disponiveis", 4) or 4),
+            help="Soma total de dias com atividades esportivas ou fortalecimento.",
+        )
+    with col_ob2:
+        n_val = perf.get("nivel_experiencia")
+        n_idx = NIVEIS_EXPERIENCIA.index(n_val) if n_val in NIVEIS_EXPERIENCIA else 1
+        nivel_ob = st.selectbox(
+            "🏅 Seu nível de experiência geral:",
+            options=NIVEIS_EXPERIENCIA,
+            index=n_idx,
+        )
+
+    m_val = perf.get("objetivo_principal")
+    m_idx = METAS_OPCOES.index(m_val) if m_val in METAS_OPCOES else 1
+    meta_ob = st.selectbox(
+        "🎯 Qual é o seu foco esportivo principal no momento?",
+        options=METAS_OPCOES,
+        index=m_idx,
+    )
+
+    col_salvar, col_pular = st.columns([2.5, 1])
+    with col_salvar:
+        if st.button("🚀 Salvar Perfil & Começar!", type="primary", use_container_width=True, key="btn_save_onboarding"):
+            if not escolha_esportes:
+                st.warning("⚠️ Selecione pelo menos um esporte ativo.")
+            else:
+                novos_dados = {
+                    "esportes_ativos": escolha_esportes,
+                    "dias_disponiveis": dias_ob,
+                    "nivel_experiencia": nivel_ob,
+                    "objetivo_principal": meta_ob,
+                    "onboarding_concluido": True,
+                }
+                if uid:
+                    update_user_profile(uid, novos_dados)
+                else:
+                    if "guest_profile" not in st.session_state:
+                        st.session_state["guest_profile"] = {}
+                    st.session_state["guest_profile"].update(novos_dados)
+                st.session_state["onboarding_shown"] = True
+                st.balloons()
+                st.success("🎉 Perfil configurado com sucesso! Vamos aos treinos!")
+                time.sleep(0.8)
+                st.rerun()
+
+    with col_pular:
+        if st.button("✕ Pular", use_container_width=True, key="btn_skip_onboarding", help="Configurar mais tarde"):
+            st.session_state["onboarding_shown"] = True
+            st.rerun()
+
+
+@st.dialog("⚙️ Meus Esportes e Metas", width="medium")
+def modal_meus_esportes():
+    st.markdown("Atualize seus esportes ativos, dias disponíveis e objetivos sempre que quiser:")
+    uid = get_current_user_id()
+    perf = get_athlete_profile()
+    esportes_atuais = perf.get("esportes_ativos") or ["🏃 Corrida de Rua & Maratona"]
+    esportes_validos = [e for e in esportes_atuais if e in ESPORTES_OPCOES] or [ESPORTES_OPCOES[0]]
+
+    novos_esportes = st.multiselect(
+        "Esportes ativos na sua rotina:",
+        options=ESPORTES_OPCOES,
+        default=esportes_validos,
+        help="Adicione ou remova modalidades de acordo com a sua fase de treinamento.",
+    )
+
+    col_me1, col_me2 = st.columns(2)
+    with col_me1:
+        novos_dias = st.slider(
+            "Dias de treino por semana:",
+            min_value=2,
+            max_value=7,
+            value=int(perf.get("dias_disponiveis", 4) or 4),
+        )
+    with col_me2:
+        n_val = perf.get("nivel_experiencia")
+        n_idx = NIVEIS_EXPERIENCIA.index(n_val) if n_val in NIVEIS_EXPERIENCIA else 1
+        novo_nivel = st.selectbox(
+            "Nível esportivo:",
+            options=NIVEIS_EXPERIENCIA,
+            index=n_idx,
+            key="sb_novo_nivel_me",
+        )
+
+    m_val = perf.get("objetivo_principal")
+    m_idx = METAS_OPCOES.index(m_val) if m_val in METAS_OPCOES else 1
+    nova_meta = st.selectbox(
+        "Foco / Meta principal:",
+        options=METAS_OPCOES,
+        index=m_idx,
+        key="sb_nova_meta_me",
+    )
+
+    if st.button("💾 Salvar Alterações de Foco", type="primary", use_container_width=True, key="btn_save_meus_esportes"):
+        if not novos_esportes:
+            st.warning("⚠️ Selecione pelo menos 1 esporte ativo.")
+        else:
+            updates = {
+                "esportes_ativos": novos_esportes,
+                "dias_disponiveis": novos_dias,
+                "nivel_experiencia": novo_nivel,
+                "objetivo_principal": nova_meta,
+                "onboarding_concluido": True,
+            }
+            if uid:
+                update_user_profile(uid, updates)
+            else:
+                if "guest_profile" not in st.session_state:
+                    st.session_state["guest_profile"] = {}
+                st.session_state["guest_profile"].update(updates)
+            st.success("✅ Esportes e focos atualizados com sucesso!")
+            time.sleep(0.8)
+            st.rerun()
 
 
 @st.dialog("📸 Registrar Treino com Print (Garmin/Strava)", width="large")
@@ -1233,9 +1614,24 @@ def modal_conversar_coach():
         else:
             with st.spinner("🏃 O Coach está consultando seu histórico e formulando a orientação..."):
                 try:
-                    sys_prompt = f"""Você é o Treinador Chefe de Corrida e Triatlo do atleta.
-Responda de forma direta, técnica, motivadora e baseada no histórico real do Google Sheets:
+                    perf = get_athlete_profile()
+                    esportes_str = ", ".join(perf.get("esportes_ativos", ["Corrida"]))
+                    nivel_str = perf.get("nivel_experiencia", "Intermediário")
+                    dias_str = perf.get("dias_disponiveis", 4)
+                    meta_str = perf.get("objetivo_principal", "Meia Maratona")
+
+                    sys_prompt = f"""Você é o Treinador Chefe de Corrida e Multiesportes do atleta.
+PERFIL DO ATLETA:
+- Esportes Praticados: {esportes_str}
+- Nível de Experiência: {nivel_str}
+- Frequência semanal: {dias_str} dias
+- Foco / Meta Principal: {meta_str}
+
+HISTÓRICO REAL DA PLANILHA / SUPABASE:
 {hist_txt}
+
+LEMBRE-SE: Como o atleta pratica {esportes_str}, considere a fadiga cumulativa neuromuscular e o princípio do treinamento cruzado ao formular a recomendação.
+Responda de forma direta, técnica, motivadora e baseada nesses dados reais:
 """
                     resp = client.models.generate_content(
                         model="gemini-2.5-flash",
@@ -1261,15 +1657,28 @@ Responda de forma direta, técnica, motivadora e baseada no histórico real do G
 
 
 # ==============================================================================
+# VERIFICAÇÃO DE ONBOARDING AUTOMÁTICO
+# ==============================================================================
+user_check = get_current_user()
+if user_check:
+    perf_check = get_athlete_profile()
+    if not perf_check.get("onboarding_concluido") and not st.session_state.get("onboarding_shown"):
+        st.session_state["onboarding_shown"] = True
+        modal_onboarding()
+
+# ==============================================================================
 # BARRA SUPERIOR DE AÇÕES RÁPIDAS
 # ==============================================================================
-col_qa1, col_qa2 = st.columns(2, gap="medium")
+col_qa1, col_qa2, col_qa3 = st.columns([1.2, 1.2, 1.0], gap="small")
 with col_qa1:
-    if st.button("📸 Registrar Treino com Print", type="primary", use_container_width=True, help="Abre janela rápida para carregar print do Strava, Garmin ou Polar."):
+    if st.button("📸 Registrar com Print", type="primary", use_container_width=True, help="Abre janela rápida para carregar print do Strava, Garmin ou Polar."):
         modal_registrar_treino_print()
 with col_qa2:
-    if st.button("💬 Conversar com o Coach AI", use_container_width=True, help="Abre consultoria rápida e tire dúvidas sobre ritmo, dores e treino."):
+    if st.button("💬 Conversar com o Coach", use_container_width=True, help="Abre consultoria rápida e tire dúvidas sobre ritmo, dores e treino."):
         modal_conversar_coach()
+with col_qa3:
+    if st.button("⚙️ Meus Esportes", use_container_width=True, help="Ajustar esportes praticados, dias por semana e meta principal."):
+        modal_meus_esportes()
 
 st.write("")
 
@@ -1288,6 +1697,51 @@ tab_painel, tab_planilha, tab_historico, tab_chat, tab_ajuda = st.tabs([
 # ABA 1: MEU PAINEL (HOME / TREINO ATUAL EM DESTAQUE)
 # ------------------------------------------------------------------------------
 with tab_painel:
+    # 0. BANNER PWA MOBILE (Salvar como aplicativo no celular)
+    perf_painel = get_athlete_profile()
+    pwa_dispensado = perf_painel.get("pwa_aviso_dispensado", False) or st.session_state.get("pwa_aviso_dispensado", False)
+
+    if not pwa_dispensado:
+        st.markdown(
+            """
+            <div class="pwa-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 8px;">
+                    <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                        📲 Salve o Coach AI como App no seu Celular!
+                    </h4>
+                    <span style="font-size: 0.78rem; background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 9999px; font-weight: 600;">
+                        Acesso com 1 Toque
+                    </span>
+                </div>
+                <p style="margin-bottom: 0.7rem; font-size: 0.93rem;">
+                    Instale direto na tela de início do seu smartphone para abrir em tela cheia e registrar seus treinos com máxima velocidade:
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 0.75rem;">
+                    <div class="pwa-os-box">
+                        <strong style="color: #F8FAFC;">🍏 No iPhone (Safari):</strong><br>
+                        1. Toque no ícone de <strong>Compartilhar</strong> (quadrado com seta ⬆️ no rodapé)<br>
+                        2. Role a lista e toque em <strong>"Adicionar à Tela de Início"</strong> 📲
+                    </div>
+                    <div class="pwa-os-box">
+                        <strong style="color: #F8FAFC;">🤖 No Android (Google Chrome):</strong><br>
+                        1. Toque nos <strong>3 pontinhos (⋮)</strong> no canto superior direito<br>
+                        2. Toque em <strong>"Adicionar à tela inicial"</strong> ou <strong>"Instalar aplicativo"</strong> 📲
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_pwa_btn, col_pwa_note = st.columns([1.8, 3.2])
+        with col_pwa_btn:
+            if st.button("✅ Já salvei na tela inicial / Entendi!", key="btn_dispensar_pwa_painel", type="secondary", use_container_width=True):
+                dismiss_pwa_banner()
+                st.toast("✅ Aviso dispensado! O guia completo continuará na aba '❓ Ajuda'.")
+                st.rerun()
+        with col_pwa_note:
+            st.caption("🔒 Ao confirmar, este aviso não será mais exibido. O passo a passo continuará sempre acessível na aba **'❓ Ajuda & Glossário'**.")
+        st.write("")
+
     df_crono, erro_crono = load_cronograma_data()
 
     # 1. SPOTLIGHT HERO CARD: TREINO ATUAL / PRÓXIMA SESSÃO
@@ -1668,18 +2122,31 @@ with tab_chat:
             with st.chat_message("assistant", avatar="🏃‍♂️"):
                 with st.spinner("O Treinador está consultando seu histórico e formulando a resposta..."):
                     try:
-                        chat_system_instruction = f"""Você é o Treinador Chefe de Corrida de Rua, Maratonas e Triatlo (Multiesporte: Natação, Ciclismo e Corrida) do atleta.
-Você possui vasta experiência com corredores e triatletas (Sprint, Olímpico, 70.3 e Ironman), aplicando fisiologia esportiva (treinamento cruzado, Jack Daniels VDOT, Lydiard, limiares de lactato e transições Brick).
+                        perf_chat = get_athlete_profile()
+                        esportes_chat = ", ".join(perf_chat.get("esportes_ativos", ["Corrida"]))
+                        nivel_chat = perf_chat.get("nivel_experiencia", "Intermediário")
+                        dias_chat = perf_chat.get("dias_disponiveis", 4)
+                        meta_chat = perf_chat.get("objetivo_principal", "Meia Maratona")
+
+                        chat_system_instruction = f"""Você é o Treinador Chefe de Corrida de Rua, Maratonas e Multiesporte do atleta.
+PERFIL DO ATLETA:
+- Modalidades e Esportes Praticados: {esportes_chat}
+- Nível de Experiência: {nivel_chat}
+- Frequência Semanal Desejada: {dias_chat} sessões por semana
+- Meta / Foco Principal: {meta_chat}
+
+Você possui vasta experiência com corredores, triatletas e atletas multiesporte (futebol, bike, natação, basquete, vôlei, musculação), aplicando fisiologia esportiva (carga neuromuscular cumulativa, treinamento cruzado, Jack Daniels VDOT, limiares de lactato e prevenção de lesões).
 Sua missão é fornecer respostas técnicas, assertivas, motivadoras e personalizadas.
 
-CONTEXTO REAL DO ATLETA (HISTÓRICO ATUALIZADO DO GOOGLE SHEETS):
+CONTEXTO REAL DO ATLETA (HISTÓRICO ATUALIZADO):
 {historico_texto}
 
 DIRETRIZES DA RESPOSTA:
-1. Sempre cite e cruze dados reais dos treinos do atleta (datas, quilometragens, FC e paces reais registrados).
-2. Se o atleta perguntar se está pronto para uma meta, seja honesto com base no volume e evolução observados.
-3. Se perguntar sobre o próximo treino, recomende com base na recuperação e no princípio da supercompensação.
-4. Mantenha tom motivador, profissional e esportivo.
+1. Sempre considere todos os esportes praticados ({esportes_chat}). Se o atleta mencionar futebol, basquete ou vôlei, lembre do alto estresse excêntrico nas pernas e desacelerações bruscas; se pedala ou nada, use como estímulo aeróbico regenerativo ou de base sem impacto articular.
+2. Sempre cite e cruze dados reais dos treinos do atleta (datas, quilometragens, FC e paces reais registrados).
+3. Se o atleta perguntar se está pronto para uma meta, seja honesto com base no volume e evolução observados.
+4. Se perguntar sobre o próximo treino, recomende com base na recuperação e no princípio da supercompensação.
+5. Mantenha tom motivador, profissional e esportivo.
 """
                         gemini_contents = []
                         for m in st.session_state["chat_messages"][-8:]:
@@ -1713,9 +2180,15 @@ with tab_planilha:
     st.markdown("### 📋 Montador Inteligente de Planilhas de Treino")
     st.write("Gere um ciclo semanal de treinamentos estruturado sob medida e envie para o seu Cronograma oficial com 1 clique.")
 
+    perf_plano = get_athlete_profile()
+    esportes_plano = perf_plano.get("esportes_ativos", ["🏃 Corrida de Rua & Maratona"])
+    tem_triatlo = any("Triatlo" in s for s in esportes_plano)
+    default_mod_idx = 1 if tem_triatlo else 0
+
     tipo_modalidade = st.radio(
         "🏅 Modalidade Principal do Planejamento:",
         ["🏃 Corrida de Rua & Maratona", "🏊🚴🏃 Triatlo (Multiesporte: Natação, Ciclismo & Corrida)"],
+        index=default_mod_idx,
         horizontal=True,
         help="Selecione 'Corrida de Rua' para metas de 5k a 42k, ou 'Triatlo' para intercalar Natação, Ciclismo, Corrida e treinos combinados (Brick).",
     )
