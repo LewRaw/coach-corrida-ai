@@ -726,11 +726,84 @@ def clear_cronograma_in_sheets() -> Tuple[bool, str]:
 # ==============================================================================
 # SERVIÇOS E CLIENTES SUPABASE (POSTGRESQL & AUTH SAAS)
 # ==============================================================================
+def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Busca as credenciais do Supabase de forma flexível em st.secrets e os.environ."""
+    url, key, secret_key = None, None, None
+
+    # 1. Seção estruturada [supabase] em st.secrets
+    try:
+        if "supabase" in st.secrets and isinstance(st.secrets["supabase"], dict):
+            sb_sec = st.secrets["supabase"]
+            url = sb_sec.get("url") or sb_sec.get("supabase_url") or sb_sec.get("URL")
+            key = (
+                sb_sec.get("key")
+                or sb_sec.get("anon_key")
+                or sb_sec.get("publishable_key")
+                or sb_sec.get("public_key")
+                or sb_sec.get("supabase_key")
+                or sb_sec.get("KEY")
+            )
+            secret_key = (
+                sb_sec.get("secret_key")
+                or sb_sec.get("service_role_key")
+                or sb_sec.get("service_key")
+                or sb_sec.get("supabase_secret_key")
+                or sb_sec.get("SECRET_KEY")
+            )
+    except Exception:
+        pass
+
+    # 2. Chaves top-level em st.secrets ou variáveis de ambiente
+    if not url:
+        for k in ["supabase_url", "SUPABASE_URL", "supabase_project_url", "SUPABASE_PROJECT_URL"]:
+            v = get_secret_val(k)
+            if v:
+                url = str(v).strip()
+                break
+
+    if not key:
+        for k in [
+            "supabase_key",
+            "SUPABASE_KEY",
+            "supabase_anon_key",
+            "SUPABASE_ANON_KEY",
+            "supabase_publishable_key",
+            "SUPABASE_PUBLISHABLE_KEY",
+            "supabase_public_key",
+            "SUPABASE_PUBLIC_KEY",
+        ]:
+            v = get_secret_val(k)
+            if v:
+                key = str(v).strip()
+                break
+
+    if not secret_key:
+        for k in [
+            "supabase_secret_key",
+            "SUPABASE_SECRET_KEY",
+            "supabase_service_role_key",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "supabase_service_key",
+            "SUPABASE_SERVICE_KEY",
+        ]:
+            v = get_secret_val(k)
+            if v:
+                secret_key = str(v).strip()
+                break
+
+    # 3. Fallbacks automáticos entre chaves
+    if not key and secret_key:
+        key = secret_key
+    if not secret_key and key:
+        secret_key = key
+
+    return url, key, secret_key
+
+
 @st.cache_resource
 def get_supabase_client() -> Optional[Client]:
-    """Retorna o cliente Supabase com a chave pública anon para auth e RLS."""
-    url = get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL")
-    key = get_secret_val("supabase_key") or get_secret_val("SUPABASE_KEY")
+    """Retorna o cliente Supabase para auth e operações de banco."""
+    url, key, _ = get_supabase_credentials()
     if not url or not key:
         return None
     try:
@@ -742,9 +815,8 @@ def get_supabase_client() -> Optional[Client]:
 
 @st.cache_resource
 def get_supabase_admin() -> Optional[Client]:
-    """Retorna o cliente Supabase com a chave de serviço (admin)."""
-    url = get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL")
-    secret_key = get_secret_val("supabase_secret_key") or get_secret_val("SUPABASE_SECRET_KEY")
+    """Retorna o cliente Supabase com privilégios de serviço (admin)."""
+    url, _, secret_key = get_supabase_credentials()
     if not url or not secret_key:
         return None
     try:
@@ -886,7 +958,7 @@ def auth_sign_in(email: str, password: str, remember: bool = True) -> Tuple[bool
     """Autentica o atleta por e-mail e senha no Supabase Auth com suporte a token persistente."""
     sb = get_supabase_client()
     if not sb:
-        return False, "Cliente Supabase não configurado nos segredos."
+        return False, "Cliente Supabase não configurado nos segredos do Streamlit Cloud. Verifique App Settings > Secrets."
     try:
         res = sb.auth.sign_in_with_password({"email": email.strip(), "password": password})
         if res and res.user:
@@ -922,49 +994,82 @@ def auth_sign_in(email: str, password: str, remember: bool = True) -> Tuple[bool
 
 def auth_sign_up(email: str, password: str, name: str, remember: bool = True) -> Tuple[bool, str]:
     """Cadastra um novo atleta no Supabase Auth e registra perfil inicial."""
+    sb_admin = get_supabase_admin()
     sb = get_supabase_client()
-    if not sb:
-        return False, "Cliente Supabase não configurado nos segredos."
+    if not sb and not sb_admin:
+        return False, "Cliente Supabase não configurado nos segredos do Streamlit Cloud. Verifique App Settings > Secrets."
+
+    user_id = None
+    user_email = email.strip().lower()
+
+    # 1. Tentar criar via Admin API com email_confirm=True (ignora limite de envio de emails e dispensa confirmação)
+    if sb_admin:
+        try:
+            admin_res = sb_admin.auth.admin.create_user({
+                "email": user_email,
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": {"full_name": name.strip()},
+            })
+            if admin_res and admin_res.user:
+                user_id = str(admin_res.user.id)
+        except Exception as admin_err:
+            err_str = str(admin_err).lower()
+            if "already registered" in err_str or "already been registered" in err_str:
+                return False, "Este e-mail já está cadastrado. Por favor, acesse a aba '🔑 Entrar'."
+            # Em caso de outro erro na API admin, tenta o fluxo regular abaixo
+            pass
+
+    # 2. Fallback para sb.auth.sign_up
+    if not user_id and sb:
+        try:
+            res = sb.auth.sign_up({"email": user_email, "password": password})
+            if res and res.user:
+                user_id = str(res.user.id)
+        except Exception as sb_err:
+            err_str = str(sb_err).lower()
+            if "already registered" in err_str or "already been registered" in err_str:
+                return False, "Este e-mail já está cadastrado. Por favor, acesse a aba '🔑 Entrar'."
+            if "rate limit" in err_str:
+                return False, "Limite temporário de cadastros atingido no Supabase. Tente novamente em alguns minutos."
+            return False, f"Erro ao cadastrar: {str(sb_err)}"
+
+    if not user_id:
+        return False, "Não foi possível criar a conta. Verifique os dados informados."
+
+    token = str(uuid.uuid4()) if remember else None
+    initial_profile = {
+        "id": user_id,
+        "email": user_email,
+        "nome": name.strip(),
+        "modalidade_preferida": "Corrida",
+        "esportes_ativos": ["🏃 Corrida de Rua & Maratona"],
+        "nivel_experiencia": "Intermediário (Já pratico com regularidade)",
+        "dias_disponiveis": 4,
+        "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
+        "pwa_aviso_dispensado": False,
+        "onboarding_concluido": False,
+        "auth_token": token,
+    }
+    target_sb = sb_admin or sb
     try:
-        res = sb.auth.sign_up({"email": email.strip(), "password": password})
-        if res and res.user:
-            user_id = str(res.user.id)
-            sb_admin = get_supabase_admin() or sb
-            token = str(uuid.uuid4()) if remember else None
-            initial_profile = {
-                "id": user_id,
-                "email": email.strip(),
-                "nome": name.strip(),
-                "modalidade_preferida": "Corrida",
-                "esportes_ativos": ["🏃 Corrida de Rua & Maratona"],
-                "nivel_experiencia": "Intermediário (Já pratico com regularidade)",
-                "dias_disponiveis": 4,
-                "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
-                "pwa_aviso_dispensado": False,
-                "onboarding_concluido": False,
-                "auth_token": token,
-            }
-            try:
-                sb_admin.table("profiles").upsert(initial_profile).execute()
-            except Exception:
-                pass
-            st.session_state["user"] = {
-                "id": user_id,
-                "email": res.user.email,
-                "nome": name.strip(),
-            }
-            st.session_state["user_profile"] = initial_profile
-            st.session_state["show_onboarding"] = True
-            if remember and token:
-                try:
-                    st.query_params["token"] = token
-                except Exception:
-                    pass
-            st.cache_data.clear()
-            return True, "Conta criada com sucesso! Você já está conectado."
-        return False, "Não foi possível criar a conta."
-    except Exception as e:
-        return False, f"Erro ao cadastrar: {str(e)}"
+        target_sb.table("profiles").upsert(initial_profile).execute()
+    except Exception:
+        pass
+    st.session_state["user"] = {
+        "id": user_id,
+        "email": user_email,
+        "nome": name.strip(),
+    }
+    st.session_state["user_profile"] = initial_profile
+    st.session_state["show_onboarding"] = True
+    if remember and token:
+        try:
+            st.query_params["token"] = token
+        except Exception:
+            pass
+    st.cache_data.clear()
+    return True, "Conta criada com sucesso! Você já está conectado."
 
 
 def auth_sign_out():
@@ -1015,6 +1120,21 @@ def render_login_screen():
 
     col_l1, col_center, col_l3 = st.columns([1, 1.8, 1])
     with col_center:
+        if not get_supabase_client():
+            st.error("⚠️ **Supabase não configurado no Streamlit Cloud**")
+            st.markdown(
+                """
+                As credenciais do Supabase ainda não foram adicionadas nos **Secrets** do app no Streamlit Cloud.
+                
+                **Como resolver (leva 30 segundos):**
+                1. No navegador, acesse seu aplicativo em [share.streamlit.io](https://share.streamlit.io)
+                2. No canto inferior direito, clique em **Manage app** ➔ **Settings** ➔ **Secrets**
+                3. Adicione as chaves `supabase_url`, `supabase_key` e `supabase_secret_key` e clique em **Save**.
+                
+                Após salvar, a tela recarregará automaticamente e o cadastro/login funcionará no celular e no computador!
+                """
+            )
+
         st.markdown(
             """
             <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.04) 0%, rgba(99, 102, 241, 0.08) 100%); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 14px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;">
