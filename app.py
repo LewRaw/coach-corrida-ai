@@ -349,11 +349,11 @@ class TreinoExtracao(BaseModel):
 class TreinoDiarioPrescrito(BaseModel):
     dia_semana: str = Field(description="Dia da semana (ex: Segunda-feira, Terça-feira, Quarta-feira, Quinta-feira, Sexta-feira, Sábado, Domingo)")
     data_prevista: str = Field(description="Data futura obrigatória no formato DD/MM/AAAA para a sessão no ano de 2026")
-    modalidade: str = Field(default="Corrida", description="Modalidade: 'Corrida', 'Ciclismo', 'Natação', 'Transição (Brick)', 'Força' ou 'Descanso'")
-    tipo_treino: str = Field(description="Título do treino com emoji. Ex: '🏃 Rodagem Z2', '🚴 Ciclismo Endurance Z2', '🏊 Natação Séries 100m', '🚴🏃 Transição Brick (Bike + Run)', '💤 Descanso Ativo'")
-    distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5 para corrida; 35.0 para ciclismo; 1.5 para 1500m natação; 0.0 caso descanso)")
-    duracao_min: float = Field(description="Duração estimada em minutos (ex: 45.0; 0.0 caso descanso)")
-    pace_alvo: str = Field(description="Faixa de pace ou intensidade alvo (ex: '05:15 - 05:30 /km' corrida; 'Z2 Cadência 85-90 RPM' ciclismo; '01:50 /100m' natação; ou 'Descanso')")
+    modalidade: str = Field(default="Corrida", description="Modalidade: 'Corrida', 'Ciclismo', 'Natação', 'Futebol', 'Basquete', 'Vôlei', 'Musculação', 'Transição (Brick)' ou 'Descanso'")
+    tipo_treino: str = Field(description="Título do treino com emoji. Ex: '🏃 Rodagem Z2', '🚴 Ciclismo Endurance Z2', '🏊 Natação Séries', '⚽ Partida / Treino de Futebol', '🏀 Basquete / Treino de Quadra', '🏐 Vôlei', '🏋️ Fortalecimento Funcional', '💤 Descanso Ativo'")
+    distancia_km: float = Field(description="Distância total prevista em km (ex: 8.5 para corrida; 35.0 para ciclismo; 1.5 para natação; 0.0 caso coletivo, musculação ou descanso)")
+    duracao_min: float = Field(description="Duração estimada em minutos (ex: 45.0, 60.0, 90.0; 0.0 caso descanso)")
+    pace_alvo: str = Field(description="Faixa de pace ou intensidade alvo (ex: '05:15 - 05:30 /km' corrida; 'Z2 Cadência 85-90 RPM' ciclismo; '01:50 /100m' natação; 'RPE 7-8 / Jogo Intenso' futebol/coletivos; 'Cargas Moderadas / Core' musculação; ou 'Descanso')")
     rpe_alvo: int = Field(description="Percepção de esforço planejada na escala Borg de 1 a 10")
     estrutura_treino: str = Field(description="Aquecimento detalhado + Treino Principal com orientações específicas da modalidade + Desaquecimento")
 
@@ -1757,12 +1757,18 @@ with tab_painel:
         df_pendentes = df_crono[df_crono["Status"] == "Pendente"]
         if not df_pendentes.empty:
             proximo = df_pendentes.iloc[0]
-            proximo_id = proximo["ID"]
-            dist_str = f"{proximo['Distância (km)']:.1f} km" if proximo["Distância (km)"] > 0 else "Descanso / Mobilidade"
+            if proximo["Distância (km)"] > 0:
+                dist_str = f"{proximo['Distância (km)']:.1f} km"
+            elif any(k in str(proximo['Tipo de Treino']) for k in ["Futebol", "Basquete", "Vôlei", "⚽", "🏀", "🏐"]):
+                dist_str = "Partida / Jogo Coletivo"
+            elif any(k in str(proximo['Tipo de Treino']) for k in ["Musculação", "Fortalecimento", "Força", "🏋️"]):
+                dist_str = "Sessão de Força & Mobilidade"
+            else:
+                dist_str = "Descanso / Recuperação Ativa"
             dur_str = f"{proximo['Duração (min)']:.0f} min" if proximo["Duração (min)"] > 0 else "--"
 
             tipo_raw = str(proximo['Tipo de Treino']).strip()
-            emoji_prefix = "" if any(tipo_raw.startswith(e) for e in ["🏃", "🚴", "🏊", "💤", "⚡", "🏋️", "🏅", "🏆", "🎯"]) else "🏃 "
+            emoji_prefix = "" if any(tipo_raw.startswith(e) for e in ["🏃", "🚴", "🏊", "💤", "⚡", "🏋️", "🏅", "🏆", "🎯", "⚽", "🏀", "🏐", "🌐"]) else "🏃 "
 
             st.markdown(
                 f"""
@@ -2183,20 +2189,104 @@ with tab_planilha:
     perf_plano = get_athlete_profile()
     esportes_plano = perf_plano.get("esportes_ativos", ["🏃 Corrida de Rua & Maratona"])
     tem_triatlo = any("Triatlo" in s for s in esportes_plano)
-    default_mod_idx = 1 if tem_triatlo else 0
+    tem_coletivo = any(any(c in s for c in ["Futebol", "Basquete", "Vôlei"]) for s in esportes_plano)
+    tem_multi = len(esportes_plano) > 1
+
+    opcoes_modalidades = [
+        "🌐 Rotina Multi-Esportes Integrada (Corrida, Bike, Natação, Futebol, Força, etc.)",
+        "🏃 Corrida de Rua & Maratona (Foco Específico em Corrida)",
+        "🏊🚴🏃 Especialista em Triatlo (Swim, Bike & Run + Transição Brick)",
+        "⚽ Esportes Coletivos & Condicionamento (Futebol, Basquete ou Vôlei + Físico)",
+    ]
+
+    if tem_triatlo:
+        default_mod_idx = 2
+    elif tem_multi:
+        default_mod_idx = 0
+    elif tem_coletivo:
+        default_mod_idx = 3
+    else:
+        default_mod_idx = 1
 
     tipo_modalidade = st.radio(
-        "🏅 Modalidade Principal do Planejamento:",
-        ["🏃 Corrida de Rua & Maratona", "🏊🚴🏃 Triatlo (Multiesporte: Natação, Ciclismo & Corrida)"],
+        "🏅 Modalidade / Arquitetura do Planejamento:",
+        opcoes_modalidades,
         index=default_mod_idx,
         horizontal=True,
-        help="Selecione 'Corrida de Rua' para metas de 5k a 42k, ou 'Triatlo' para intercalar Natação, Ciclismo, Corrida e treinos combinados (Brick).",
+        help="Escolha o foco da semana: 'Multi-Esportes' integra suas várias modalidades; 'Corrida' foca em km/pace; 'Triatlo' periodiza swim-bike-run; 'Coletivos' protege contra lesões de futebol/basquete/vôlei.",
     )
 
     col_p1, col_p2 = st.columns([1, 1], gap="large")
 
     with col_p1:
-        if "Triatlo" in tipo_modalidade:
+        if "Multi-Esportes" in tipo_modalidade:
+            esportes_selecionados = st.multiselect(
+                "🏅 Modalidades incluídas no seu microciclo:",
+                options=ESPORTES_OPCOES,
+                default=[e for e in esportes_plano if e in ESPORTES_OPCOES] or [ESPORTES_OPCOES[0]],
+                help="Selecione todos os esportes que você planeja praticar ou intercalar nesta semana.",
+            )
+            objetivo_selecionado = st.selectbox(
+                "🎯 Qual é o foco da sua semana multi-esportes?",
+                options=[
+                    "⚡ Equilíbrio Global: Resistência Aeróbica + Força Funcional Sem Sobrecarga",
+                    "🏃 Prioridade Corrida com Manutenção das Outras Modalidades",
+                    "🚴 Prioridade Ciclismo / Bike com Treinos Cruzados de Suporte",
+                    "⚽ Preservação Muscular e Condicionamento para Jogos Coletivos",
+                    "🏋️ Ênfase em Fortalecimento e Prevenção de Lesões com Base Z2 Leve",
+                    "⚖️ Condicionamento Físico Geral e Queima Calórica Multi-Atividades",
+                ],
+                help="O foco principal orientará como a IA distribui as cargas entre as modalidades.",
+            )
+            dias_semana = st.slider(
+                "📅 Quantos dias da semana você deseja realizar atividades?",
+                min_value=3,
+                max_value=7,
+                value=int(perf_plano.get("dias_disponiveis", 4) or 4),
+                help="Soma de todos os dias com treinos ou partidas.",
+            )
+            dia_chave_coletivo = st.selectbox(
+                "⚽/🚴 Dia do jogo coletivo, pedal longo ou treino mais exigente:",
+                options=["Não tenho dia fixo", "Quarta-feira", "Sábado", "Domingo", "Terça-feira", "Quinta-feira", "Sexta-feira", "Segunda-feira"],
+                help="O Coach colocará recuperação ativa ou descanso no dia seguinte a este esforço para evitar lesões.",
+            )
+            dia_longao = dia_chave_coletivo
+
+        elif "Coletivos" in tipo_modalidade:
+            esporte_coletivo = st.selectbox(
+                "⚽ Qual seu esporte coletivo principal?",
+                options=[
+                    "⚽ Futebol (Society / Campo / Futsal)",
+                    "🏀 Basquete (Quadra / Meia Quadra)",
+                    "🏐 Vôlei (Quadra / Areia / Futevôlei)",
+                ],
+                help="A modalidade coletiva gera alta fadiga excêntrica (sprints, freadas e saltos).",
+            )
+            dia_jogo = st.selectbox(
+                "🗓️ Dia do seu jogo / partida principal na semana:",
+                options=["Quarta-feira", "Sábado", "Domingo", "Terça-feira", "Quinta-feira", "Sexta-feira", "Segunda-feira"],
+                help="O Coach calibrará a intensidade da semana para que você chegue 100% no dia do jogo!",
+            )
+            objetivo_selecionado = st.selectbox(
+                "🎯 Qual é o seu objetivo de preparação física?",
+                options=[
+                    "⚡ Fôlego e Resistência: aguentar o jogo todo em alta intensidade sem cansar no final",
+                    "🚀 Explosão e Agilidade: tiros curtos mais rápidos e recuperação acelerada entre lances",
+                    "🛡️ Prevenção de Lesões: blindar adutores (pubalgia), isquiotibiais e joelhos",
+                    "🫀 Condicionamento Geral: intercalar corridas moderadas com o jogo semanal",
+                ],
+            )
+            esportes_selecionados = [esporte_coletivo, "🏃 Corrida de Rua & Maratona", "🏋️ Musculação / Fortalecimento"]
+            dias_semana = st.slider(
+                "📅 Quantos dias no total (jogo + treinos físicos de corrida/força)?",
+                min_value=3,
+                max_value=6,
+                value=4,
+                help="Recomendado: 1 dia de jogo + 2 a 3 dias de treinos físicos/mobilidade.",
+            )
+            dia_longao = dia_jogo
+
+        elif "Triatlo" in tipo_modalidade:
             objetivo_selecionado = st.selectbox(
                 "🎯 Qual é a sua meta / distância de Triatlo?",
                 options=[
@@ -2214,6 +2304,7 @@ with tab_planilha:
                 default=["Natação", "Ciclismo", "Corrida", "Transição Brick (Bike + Run)"],
                 help="Escolha quais esportes você quer na semana. 'Brick' é o treino de pedalar e sair correndo logo em seguida para adaptar as pernas.",
             )
+            esportes_selecionados = ["🏊 Natação", "🚴 Ciclismo / Bike", "🏃 Corrida de Rua & Maratona"]
             dias_semana = st.slider(
                 "📅 Quantas sessões de treino você deseja realizar na semana?",
                 min_value=4,
@@ -2226,9 +2317,10 @@ with tab_planilha:
                 options=["Sábado", "Domingo", "Outro dia da semana"],
                 help="'Longão': o treino com maior tempo ou distância da semana (geralmente o pedal longo no final de semana).",
             )
-        else:
+
+        else: # Corrida de Rua & Maratona
             objetivo_selecionado = st.selectbox(
-                "🎯 Qual é o seu objetivo principal?",
+                "🎯 Qual é o seu objetivo principal de Corrida?",
                 options=[
                     "🏃 Estreia em Meia Maratona (21.1 km)",
                     "🏅 Sub 50 minutos nos 10 km",
@@ -2240,6 +2332,7 @@ with tab_planilha:
                 help="Meta esportiva principal para o treinador dosar o volume (km) e a intensidade (pace) da semana.",
             )
             disciplinas_selecionadas = ["Corrida"]
+            esportes_selecionados = ["🏃 Corrida de Rua & Maratona"]
             dias_semana = st.slider(
                 "📅 Quantos dias por semana você pode treinar corrida?",
                 min_value=3,
@@ -2258,17 +2351,17 @@ with tab_planilha:
             "⏳ Período do Planejamento:",
             options=[
                 "Microciclo Imediato (Semana 1 / Próximos 7 dias)",
-                "Bloco de Base Aeróbica (4 Semanas)",
-                "Ciclo de Polimento Pré-Prova (2 Semanas)",
+                "Bloco de Base Aeróbica & Fortalecimento (4 Semanas)",
+                "Ciclo de Polimento Pré-Prova / Competição (2 Semanas)",
             ],
             help="Microciclo = prescrição detalhada dos próximos 7 dias. Bloco de Base = foco em construir fôlego aeróbico e resistência.",
         )
 
         obs_lesoes = st.text_area(
             "🩺 Observações Físicas, Dores Recentes ou Restrições:",
-            placeholder="Ex: Leve desconforto na tíbia direita após treinos em asfalto; preferência por nadar às terças e quintas; sem lesões graves.",
+            placeholder="Ex: Jogo futebol na quarta-feira à noite; leve desconforto no tendão de Aquiles; preferência por pedalar no sábado; sem lesões graves.",
             height=125,
-            help="Conte sobre dores musculares (canelite, joelho, fáscia plantar), dias em que não pode treinar ou se faz musculação.",
+            help="Conte sobre dores musculares (canelite, joelho, adutores/pubalgia), dias em que não pode treinar ou se faz musculação.",
         )
 
         btn_gerar_plano = st.button(
@@ -2302,7 +2395,49 @@ with tab_planilha:
                         datas_proximas.append(f"- Dia {i} ({nome_d}): {dt.strftime('%d/%m/%Y')}")
                     calendario_datas_str = "\n".join(datas_proximas)
 
-                    if "Triatlo" in tipo_modalidade:
+                    if "Multi-Esportes" in tipo_modalidade:
+                        diretrizes_metodologia = f"""
+MISSÃO ESPECIALIZADA: TREINADOR MESTRE MULTI-ESPORTES E FISIOLOGIA DO EXERCÍCIO:
+Você é um Treinador de Elite especializado em periodização integrativa para atletas que praticam múltiplos esportes.
+O atleta selecionou as seguintes modalidades para esta semana: {', '.join(esportes_selecionados)}.
+Meta / Foco da Semana: {objetivo_selecionado}.
+Frequência: {dias_semana} sessões ativas na semana. Os outros {7 - dias_semana} dias devem ser 'Descanso' ou 'Descanso Ativo / Recuperação'.
+Dia Chave / Mais Exigente da Semana: {dia_longao}.
+
+DIRETRIZES FUNDAMENTAIS DE PERIODIZAÇÃO MULTIESPORTES:
+1. SINERGIA ENTRE MODALIDADES (TREINAMENTO CRUZADO):
+   - Alterne dias de impacto articular no solo (corrida) com dias de baixo ou zero impacto (ciclismo, natação ou fortalecimento).
+   - Use o Ciclismo (Zona 2) e Natação como aceleradores da recuperação ativa, estimulando a circulação sem estresse nos tendões.
+2. GESTÃO DE DESGASTE NEUROMUSCULAR (FUTEBOL / BASQUETE / VÔLEI):
+   - Se a semana incluir futebol, basquete ou vôlei, lembre que esses esportes geram alta sobrecarga excêntrica (freadas bruscas, sprints curtos e saltos).
+   - O dia imediatamente após um jogo NUNCA deve ser treino de tiros de alta intensidade na corrida! Deve ser: Descanso, Soltura em Bike Z1 (giro leve 85-90 RPM), Natação solta ou Trote levíssimo Z1.
+3. FORTALECIMENTO PREVENTIVO (MUSCULAÇÃO):
+   - Prescreva exercícios funcionais de suporte (glúteo médio, core anti-rotação, adutores para evitar pubalgia, panturrilhas e mobilidade).
+4. NOMENCLATURA E REGRAS DO ESQUEMA:
+   - No campo 'tipo_treino', inicie OBRIGATORIAMENTE com o emoji da modalidade:
+     '🏃 Corrida...', '🚴 Ciclismo...', '🏊 Natação...', '⚽ Futebol...', '🏀 Basquete...', '🏐 Vôlei...', '🏋️ Fortalecimento / Mobilidade...', '💤 Descanso...'.
+   - No campo 'modalidade', preencha com: 'Corrida', 'Ciclismo', 'Natação', 'Futebol', 'Basquete', 'Vôlei', 'Musculação' ou 'Descanso'.
+   - Para sessões que não têm quilometragem métrica (ex: futebol, basquete, musculação), preencha 'distancia_km' com 0.0 e 'duracao_min' com o tempo estimado (ex: 60.0 ou 90.0).
+   - No campo 'pace_alvo', preencha de acordo com a modalidade (ex: '05:20/km' para corrida; 'Z2 85 RPM' para ciclismo; '01:55/100m' para natação; 'RPE 7-8 / Intensidade de Jogo' para coletivos; 'Força Funcional e Core' para musculação; ou 'Descanso').
+"""
+                    elif "Coletivos" in tipo_modalidade:
+                        diretrizes_metodologia = f"""
+MISSÃO ESPECIALIZADA: PREPARADOR FÍSICO DE ESPORTES COLETIVOS E RESISTÊNCIA:
+Você é um Preparador Físico de Futebol, Basquete e Vôlei de alto rendimento.
+O atleta joga {esporte_coletivo} e sua meta nesta semana é: {objetivo_selecionado}.
+Dia da Partida Principal: {dia_longao}.
+Frequência Semanal: {dias_semana} sessões no total (incluindo a partida e os treinos físicos).
+
+DIRETRIZES DE PERIODIZAÇÃO:
+1. Dia do Jogo ({dia_longao}): Dia de intensidade máxima competitiva (RPE 8-9).
+2. Véspera do Jogo: Descanso ou treino levíssimo de ativação neural (mobilidade rápida, sem fadiga muscular).
+3. Dia Seguinte ao Jogo: Recuperação ativa obrigatória (caminhada, pedal Z1 leve, soltura de pernas, sem impacto).
+4. Meio de Semana: Treino intervalado de corrida focado em sprints com mudanças de direção (HIIT anaeróbico) + sessão de fortalecimento preventivo (ísquios, adutores/virilha, joelhos e tornozelos).
+5. No campo 'tipo_treino', use emojis representativos ('⚽ Partida / Treino de Futebol', '🏀 Jogo de Basquete', '🏐 Partida de Vôlei', '🏃 Treino Físico / Tiros', '🏋️ Prevenção e Core', '💤 Recuperação Ativa').
+6. No campo 'modalidade', use 'Futebol', 'Basquete', 'Vôlei', 'Corrida', 'Musculação' ou 'Descanso'.
+7. Preencha 'distancia_km' com 0.0 para jogos ou musculação, e 'duracao_min' com o tempo previsto.
+"""
+                    elif "Triatlo" in tipo_modalidade:
                         diretrizes_metodologia = f"""
 MISSÃO ESPECIALIZADA: TREINADOR DE TRIATLO / MULTIESPORTE (SWIM, BIKE & RUN):
 Você é um Treinador de Triatlo certificado internacionalmente (Ironman / World Triathlon).
@@ -2343,9 +2478,11 @@ DADOS DO ATLETA E HISTÓRICO REAL NA PLANILHA:
 {historico_resumo}
 
 PARÂMETROS DEFINIDOS PELO ATLETA:
-- Categoria: {tipo_modalidade}
-- Objetivo: {objetivo_selecionado}
-- Dia do Treino Chave / Longo: {dia_longao}
+- Tipo de Planejamento: {tipo_modalidade}
+- Modalidades Selecionadas: {', '.join(esportes_selecionados)}
+- Foco / Meta: {objetivo_selecionado}
+- Frequência Semanal: {dias_semana} dias
+- Dia do Treino Chave / Longo / Jogo: {dia_longao}
 - Período: {ciclo_horizonte}
 - Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
 
@@ -2394,11 +2531,27 @@ Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informa
 
         st.markdown("#### 🗓️ Cronograma dos 7 Dias da Semana:")
         for d in plano.dias:
-            dist_label = f"📏 {d.distancia_km:.1f} km" if d.distancia_km > 0 else "💤 Descanso"
+            if d.distancia_km > 0:
+                dist_label = f"📏 {d.distancia_km:.1f} km"
+            elif any(k in str(d.tipo_treino) for k in ["Futebol", "Basquete", "Vôlei", "⚽", "🏀", "🏐"]):
+                dist_label = "⚽ Partida / Treino de Quadra"
+            elif any(k in str(d.tipo_treino) for k in ["Musculação", "Fortalecimento", "Força", "🏋️"]):
+                dist_label = "🏋️ Fortalecimento / Mobilidade"
+            else:
+                dist_label = "💤 Descanso / Recuperação Ativa"
+
             dur_label = f"⏳ {d.duracao_min:.0f} min" if d.duracao_min > 0 else ""
-            with st.expander(f"{d.dia_semana} ({d.data_prevista}) — {d.tipo_treino} ({dist_label})", expanded=True):
-                st.write(f"**Pace Alvo:** {d.pace_alvo} | **RPE Alvo:** {d.rpe_alvo}/10 {dur_label}")
-                st.write(f"**Estrutura:** {d.estrutura_treino}")
+            header_pill = f"{dist_label} • {dur_label}" if dur_label else dist_label
+
+            with st.expander(f"{d.dia_semana} ({d.data_prevista}) — {d.tipo_treino} ({header_pill})", expanded=True):
+                col_d1, col_d2, col_d3 = st.columns([1.6, 1, 1])
+                with col_d1:
+                    st.markdown(f"**Ritmo / Intensidade Alvo:** `{d.pace_alvo}`")
+                with col_d2:
+                    st.markdown(f"**RPE Alvo:** `{d.rpe_alvo}/10`")
+                with col_d3:
+                    st.markdown(f"**Modalidade:** `{d.modalidade}`")
+                st.markdown(f"**Estrutura da Sessão:**<br>{d.estrutura_treino.replace(chr(10), '<br>')}", unsafe_allow_html=True)
 
         substituir_existente = st.checkbox(
             "Substituir cronograma atual (limpar treinos antigos antes de salvar)",
