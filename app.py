@@ -184,6 +184,15 @@ st.markdown(
             white-space: nowrap !important;
         }
     }
+
+    /* Barra Superior de Ações Rápidas */
+    .quick-action-bar {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(99, 102, 241, 0.08) 100%);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.25rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -709,276 +718,192 @@ with col_status:
     else:
         st.caption("🟡 **Modo Parcial / Demo**")
 
-# Expander de Apoio, Guia do Atleta e Dicionário de Termos
-with st.expander("📱 Guia do Atleta & 📖 Dicionário de Termos (Pace, RPE, Zonas, Brick...)"):
-    tab_exp_guia, tab_exp_termos = st.tabs(["📲 Como Usar no Celular", "📖 Dicionário de Termos & Jargões"])
-
-    with tab_exp_guia:
-        st.markdown(
-            """
-            ##### 📲 Como transformar em app no seu celular:
-            - **No iPhone (Safari):** Toque no ícone de compartilhar (quadrado com seta) e selecione **"Adicionar à Tela de Início"**.
-            - **No Android (Chrome):** Toque nos 3 pontinhos e selecione **"Adicionar à tela inicial"** ou **"Instalar aplicativo"**.
-
-            ---
-            ##### 🏃 Rotina Rápida em 4 Passos:
-            1. **📅 Ver o Treino do Dia:** Na aba *Treino Atual & Cronograma*, veja o que está agendado e como executar.
-            2. **✅ Fazer Check-in:** Terminou a corrida? Clique no botão *Marcar como Feito* para atualizar sua planilha.
-            3. **📤 Subir o Print (Opcional):** Na aba *Novo Treino*, envie o print do Strava ou Garmin para receber o parecer técnico da IA.
-            4. **💬 Conversar com o Coach:** Na aba *Conversar com o Coach*, tire dúvidas sobre ritmo, dores, descanso e nutrição.
-
-            ---
-            ##### ⚠️ Dicas e Limites:
-            - **Prints nítidos:** O print deve mostrar pelo menos distância, tempo total e pace médio.
-            - **Atualização rápida:** O app sincroniza a cada 60s. Para forçar a busca imediata, use o botão **🔄 Atualizar**.
-            - **Saúde primeiro:** A consultoria do Coach AI auxilia nos treinos amadores e maratonas; em caso de dor aguda persistente, procure sempre um fisioterapeuta ou médico.
-            """
-        )
-
-    with tab_exp_termos:
-        st.markdown(
-            """
-            ##### 🏃 Termos Essenciais da Corrida:
-            - **Pace (Ritmo):** Tempo gasto para correr **1 quilômetro** (formato mm:ss /km).  
-              *Exemplo:* Pace de `05:30/km` significa que você leva 5 minutos e 30 segundos para completar cada km. **Quanto menor o número, mais rápido você está correndo!**
-            - **RPE (Escala de Borg / Percepção de Esforço):** Sigla de *Rating of Perceived Exertion*. É uma nota de **1 a 10** de quão cansativo o treino pareceu para você (1 = caminhada fácil, 5 = ritmo confortável contínuo, 8 = ritmo forte de prova, 10 = exaustão máxima).
-            - **FC (Frequência Cardíaca) & BPM:** Número de Batimentos Por Minuto do seu coração.
-            - **Longão (Long Run):** Treino mais longo da semana (feito no final de semana). O objetivo principal é construir resistência aeróbica e força mental, e não correr rápido.
-            - **Tiros / Treino Intervalado:** Treino que alterna corridas muito rápidas (tiros) com períodos de descanso parado ou trotando devagar. Serve para aumentar sua velocidade máxima e VO2 Máx.
-            - **Fartlek:** Jogo de velocidade livre ("brincar de correr rápido e devagar") no meio de uma rodagem contínua.
-
-            ---
-            ##### ❤️ Zonas de Frequência Cardíaca (Z1 a Z5):
-            - **Z1 (Regenerativo):** Trote levíssimo de recuperação pós-treino forte.
-            - **Z2 (Base Aeróbica pura):** Ritmo "conversacional" e confortável. Você consegue conversar sem perder o fôlego. Constrói a base do coração e queima gordura.
-            - **Z3 (Ritmo / Tempo Run):** Esforço moderado-firme contínuo (ritmo de prova de Meia Maratona ou Maratona).
-            - **Z4 (Limiar de Lactato / Threshold):** Ritmo forte sustentável por 30 a 60 minutos. A respiração fica bem pesada.
-            - **Z5 (VO2 Máx / Anaeróbico):** Esforço máximo, quase sem conseguir respirar, para tiros curtos.
-
-            ---
-            ##### 🏊🚴🏃 Termos de Triatlo (Multiesporte):
-            - **Brick (Transição):** Treino combinado em que você pedala forte e, logo em seguida, calça o tênis e sai correndo. Serve para ensinar seu corpo a correr com as "pernas pesadas de chumbo".
-            - **Cadência (RPM / SpM):**
-              - Na corrida: Passos por minuto (ideal entre 165 e 180 passos/min).
-              - Na bicicleta: Rotações por minuto dos pedais (ideal entre 85 e 95 RPM).
-            - **Distâncias de Prova de Triatlo:**
-              - *Sprint:* 750m Natação + 20km Ciclismo + 5km Corrida (rápido e intenso).
-              - *Olímpico / Standard:* 1.500m Natação + 40km Ciclismo + 10km Corrida.
-              - *Meio Ironman (70.3):* 1,9km Natação + 90km Ciclismo + 21,1km Corrida (total de 70,3 milhas / 113 km).
-              - *Ironman Completo (140.6):* 3,8km Natação + 180km Ciclismo + 42,2km Corrida (total de 140,6 milhas / 226 km).
-            """
-        )
-
 # ==============================================================================
-# ABAS PRINCIPAIS (5 ABAS COMPLETAS)
+# MODAIS POPUP (STREAMLIT DIALOGS)
 # ==============================================================================
-tab_novo_treino, tab_cronograma, tab_historico, tab_chat, tab_planilha = st.tabs([
-    "🏃 Novo Treino",
-    "📅 Treino Atual & Cronograma",
-    "📊 Histórico e Gráficos",
-    "💬 Conversar com o Coach",
-    "📋 Montador de Treinos",
-])
+@st.dialog("📸 Registrar Treino com Print (Garmin/Strava)", width="large")
+def modal_registrar_treino_print():
+    st.markdown("Envie o print do seu relógio ou aplicativo de corrida para análise imediata com o Coach AI:")
+    col_up, col_in = st.columns([1.1, 1], gap="medium")
 
-# ------------------------------------------------------------------------------
-# ABA 1: NOVO TREINO
-# ------------------------------------------------------------------------------
-with tab_novo_treino:
-    st.markdown("### 📤 Registrar Nova Sessão de Corrida")
-    st.write("Envie um print do seu aplicativo de corrida (Garmin Connect, Strava, Polar) para receber a análise imediata do treinador.")
-
-    col_upload, col_inputs = st.columns([1.2, 1], gap="medium")
-
-    with col_upload:
-        uploaded_file = st.file_uploader(
-            "Print do Treino (Garmin, Strava, etc.)",
+    with col_up:
+        uploaded_file_m = st.file_uploader(
+            "Print do Treino (Garmin Connect, Strava, Polar)",
             type=["png", "jpg", "jpeg", "webp"],
-            help="Certifique-se de que a imagem mostre distância, tempo, ritmo médio (pace) e frequência cardíaca se disponível.",
+            key="modal_upload_file",
+            help="Certifique-se de que a imagem mostre distância, tempo, pace e frequência cardíaca se disponível.",
         )
+        if uploaded_file_m:
+            st.image(uploaded_file_m, caption="Visualização do Print Enviado", use_container_width=True)
 
-        if uploaded_file:
-            st.image(uploaded_file, caption="Visualização do Print Enviado", use_container_width=True)
-
-    with col_inputs:
-        rpe = st.slider(
-            "Percepção Subjetiva de Esforço (RPE - Escala de Borg)",
+    with col_in:
+        rpe_m = st.slider(
+            "Percepção de Esforço (RPE - Escala de Borg)",
             min_value=1,
             max_value=10,
             value=6,
-            help="RPE (Rating of Perceived Exertion): Medida de 1 a 10 de cansaço. 1: Muito leve | 3: Zona 2 confortável | 5: Ritmo de Maratona | 7-8: Ritmo de prova / Limiar | 10: Exaustão máxima.",
+            key="modal_slider_rpe",
+            help="1: Muito leve | 3: Z2 conversacional | 5: Ritmo de Maratona | 7-8: Forte / Limiar | 10: Máximo",
         )
-        
-        rpe_labels = {
-            1: "1 - Muito Leve (Recuperação Ativa)",
-            2: "2 - Leve (Conversacional tranquilo)",
-            3: "3 - Moderado Leve (Zona 2 pura)",
-            4: "4 - Moderado (Ritmo confortável contínuo)",
-            5: "5 - Moderado Firme (Ritmo de Maratona)",
-            6: "6 - Firme (Início da Zona de Ritmo)",
-            7: "7 - Forte (Ritmo de Meia Maratona)",
-            8: "8 - Muito Forte (Limiar de Lactato / 10k)",
-            9: "9 - Severo (Tiros de VO2 Máx / 5k)",
-            10: "10 - Esforço Máximo Exaustivo",
+        rpe_labels_m = {
+            1: "1 - Muito Leve",
+            2: "2 - Leve (Conversacional)",
+            3: "3 - Moderado Leve (Zona 2)",
+            4: "4 - Moderado (Confortável)",
+            5: "5 - Moderado Firme (Maratona)",
+            6: "6 - Firme (Início de Ritmo)",
+            7: "7 - Forte (Meia Maratona)",
+            8: "8 - Muito Forte (Limiar / 10k)",
+            9: "9 - Severo (Tiros VO2 Máx)",
+            10: "10 - Esforço Máximo",
         }
-        st.caption(f"**Intensidade Selecionada:** {rpe_labels.get(rpe, '')}")
-
-        user_notes = st.text_area(
+        st.caption(f"**Intensidade:** {rpe_labels_m.get(rpe_m, '')}")
+        user_notes_m = st.text_area(
             "Sensações e Notas do Atleta (Opcional)",
-            placeholder="Ex: Treino sob calor de 28°C; pernas pesadas nos últimos 2km; hidratação a cada 3km; sem dores articulares.",
-            height=130,
-            help="Anote sensações do treino: clima (sol/chuva/frio), dores musculares, terreno ou se o ritmo pareceu fácil ou difícil.",
+            placeholder="Ex: Treino em aclive; pernas soltas; hidratação a cada 3km; sem dores articulares.",
+            height=110,
+            key="modal_user_notes",
         )
-
-        btn_analisar = st.button(
-            "🚀 Analisar Treino com Coach AI",
+        btn_analisar_m = st.button(
+            "🚀 Analisar e Gravar Treino",
             type="primary",
             use_container_width=True,
-            help="Clique para enviar a imagem ao Gemini 2.5 Flash, extrair métricas e salvar no Google Sheets.",
+            key="btn_modal_analisar_act",
         )
 
-    # Feedback de Processamento Progressivo e Ação
-    if btn_analisar:
-        if not uploaded_file:
-            st.warning("⚠️ Por favor, selecione e faça o upload de um print de corrida antes de iniciar a análise.")
+    if btn_analisar_m:
+        if not uploaded_file_m:
+            st.warning("⚠️ Selecione e faça upload de um print de corrida antes de analisar.")
         else:
             client = get_gemini_client()
             if not client:
-                st.error("🔑 Chave de API do Gemini não configurada! Verifique `GEMINI_API_KEY` em `.streamlit/secrets.toml`.")
+                st.error("🔑 Chave de API do Gemini não configurada.")
             else:
-                with st.status("🏃 Processando treino com o Coach AI...", expanded=True) as status_box:
+                with st.spinner("🏃 Processando print e salvando dados no Google Sheets..."):
                     try:
-                        status_box.write("📤 **Etapa 1/3:** Preparando imagem e enviando dados para o Gemini 2.5 Flash...")
-                        image_bytes = uploaded_file.getvalue()
-                        mime_type = uploaded_file.type or "image/jpeg"
-                        
-                        resultado = analyze_workout_image(
-                            image_bytes=image_bytes,
-                            mime_type=mime_type,
-                            rpe=rpe,
-                            user_notes=user_notes,
+                        res = analyze_workout_image(
+                            image_bytes=uploaded_file_m.getvalue(),
+                            mime_type=uploaded_file_m.type or "image/jpeg",
+                            rpe=rpe_m,
+                            user_notes=user_notes_m,
                             gemini_client=client,
                         )
-                        
-                        status_box.write("🧠 **Etapa 2/3:** Métricas extraídas e diagnóstico técnico formulado pelo treinador!")
-                        
-                        status_box.write("💾 **Etapa 3/3:** Sincronizando dados e parecer com o Google Sheets...")
-                        salvo, msg_sheets = append_workout_to_sheets(resultado, rpe, user_notes)
-                        
-                        if salvo:
-                            status_box.update(
-                                label="✅ Análise concluída e registrada no Google Sheets!",
-                                state="complete",
-                                expanded=False,
-                            )
-                        else:
-                            status_box.update(
-                                label=f"⚠️ Treino analisado, mas atenção na planilha: {msg_sheets}",
-                                state="error",
-                                expanded=True,
-                            )
-
-                        st.session_state["ultimo_treino"] = resultado
+                        salvo, msg_sheets = append_workout_to_sheets(res, rpe_m, user_notes_m)
+                        st.session_state["ultimo_treino"] = res
                         st.session_state["sheets_salvo"] = salvo
                         st.session_state["sheets_msg"] = msg_sheets
-
-                    except Exception as e:
-                        status_box.update(label="❌ Erro durante o processamento da atividade", state="error", expanded=True)
-                        st.error(f"Detalhes do erro: {str(e)}")
-
-    # Exibição dos Resultados Análises
-    if "ultimo_treino" in st.session_state:
-        res: TreinoExtracao = st.session_state["ultimo_treino"]
-
-        st.markdown("---")
-        st.markdown("### 📈 Métricas Extraídas da Sessão")
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        with m_col1:
-            st.metric("📏 Distância", f"{res.distancia_km:.2f} km", help="Quilometragem total percorrida no treino.")
-        with m_col2:
-            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km", help="Pace (Ritmo): Tempo que você levou para completar cada km (minutos:segundos). Quanto menor, mais rápido!")
-        with m_col3:
-            fc_display = f"{res.fc_media} bpm" if res.fc_media > 0 else "Não detectada"
-            st.metric("❤️ FC Média", fc_display, help="Frequência Cardíaca média em Batimentos Por Minuto (BPM) captada pelo sensor.")
-        with m_col4:
-            minutos = int(res.tempo_min)
-            segundos = int(round((res.tempo_min - minutos) * 60))
-            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s", help="Tempo total que você passou em movimento.")
-
-        st.markdown(
-            f"""
-            <div class="coach-card">
-                <span class="coach-badge">🎯 {res.zona_predominante} • Sessão de {res.data}</span>
-                <h3>📋 Parecer Técnico de Consultoria</h3>
-                <p>{res.parecer_treinador.replace(chr(10), '<br>')}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if st.session_state.get("sheets_salvo"):
-            st.success("💾 Atividade registrada com sucesso na aba 'Treinos' da sua planilha!")
-
-# ------------------------------------------------------------------------------
-# ABA 2: TREINO ATUAL & CRONOGRAMA (NOVA FUNCIONALIDADE)
-# ------------------------------------------------------------------------------
-with tab_cronograma:
-    st.markdown("### 📅 Cronograma de Treinos & Sessão do Dia")
-    st.write("Acompanhe o que está agendado na sua planilha, marque os treinos concluídos com 1 clique e monitore sua taxa de adesão.")
-
-    col_btn_refresh_crono, col_btn_clear_crono, _ = st.columns([1.5, 1.5, 3])
-    with col_btn_refresh_crono:
-        btn_refresh_crono = st.button("🔄 Atualizar Cronograma", use_container_width=True, help="Recarrega as sessões mais recentes diretamente da planilha do Google Sheets.")
-        if btn_refresh_crono:
-            st.cache_data.clear()
-            st.rerun()
-
-    with col_btn_clear_crono:
-        with st.popover("🗑️ Limpar Cronograma", help="Clique para apagar os treinos agendados e começar uma planilha nova."):
-            st.write("Deseja apagar todos os treinos agendados na aba 'Cronograma'?")
-            if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True, help="Remove todas as sessões anteriores da aba Cronograma mantendo o cabeçalho."):
-                with st.spinner("Limpando sessões da planilha..."):
-                    ok_cl, msg_cl = clear_cronograma_in_sheets()
-                    if ok_cl:
-                        st.success(msg_cl)
+                        st.cache_data.clear()
+                        st.balloons()
+                        st.success("✅ Atividade analisada com sucesso e sincronizada com a planilha!")
+                        time.sleep(1)
                         st.rerun()
-                    else:
-                        st.error(msg_cl)
+                    except Exception as e:
+                        st.error(f"Erro no processamento: {str(e)}")
 
+
+@st.dialog("💬 Conversar com o Coach AI", width="large")
+def modal_conversar_coach():
+    st.markdown("##### Tire dúvidas rápidas com o Treinador sobre treinos, ritmo e recuperação:")
+    df_ctx, _ = load_workouts_from_sheets()
+    hist_txt = format_athlete_history_for_prompt(df_ctx)
+
+    st.markdown("###### ⚡ Perguntas Rápidas:")
+    cols_q = st.columns(2)
+    pergunta_selecionada = None
+    with cols_q[0]:
+        if st.button("📈 Como está meu ritmo (pace)?", use_container_width=True, key="m_btn_pace"):
+            pergunta_selecionada = "Como está minha evolução de ritmo (pace) recente com base no meu histórico de treinos?"
+        if st.button("💤 O que fazer amanhã?", use_container_width=True, key="m_btn_amanha"):
+            pergunta_selecionada = "Qual treino ou descanso você recomenda para amanhã considerando meu último esforço registrado?"
+    with cols_q[1]:
+        if st.button("❤️ Avaliar meu coração (FC)", use_container_width=True, key="m_btn_fc"):
+            pergunta_selecionada = "Avalie minha eficiência cardiovascular e zonas relacionando meu ritmo e FC média."
+        if st.button("🎯 Meta de Meia Maratona", use_container_width=True, key="m_btn_meia"):
+            pergunta_selecionada = "Estou com volume e consistência adequados para encarar uma Meia Maratona (21.1 km)?"
+
+    pergunta_input = st.text_input(
+        "Ou digite sua dúvida personalizada:",
+        placeholder="Ex: Como dosar o ritmo nos primeiros 3km?",
+        key="modal_input_pergunta",
+    )
+    btn_enviar_duvida = st.button("Enviar Dúvida", type="primary", use_container_width=True, key="m_btn_enviar")
+
+    pergunta_final = pergunta_selecionada or (pergunta_input if (btn_enviar_duvida and pergunta_input.strip()) else None)
+
+    if pergunta_final:
+        client = get_gemini_client()
+        if not client:
+            st.error("🔑 API Key do Gemini não configurada.")
+        else:
+            with st.spinner("🏃 O Coach está consultando seu histórico e formulando a orientação..."):
+                try:
+                    sys_prompt = f"""Você é o Treinador Chefe de Corrida e Triatlo do atleta.
+Responda de forma direta, técnica, motivadora e baseada no histórico real do Google Sheets:
+{hist_txt}
+"""
+                    resp = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=f"{sys_prompt}\n\nDÚVIDA DO ATLETA: {pergunta_final}",
+                        config=types.GenerateContentConfig(temperature=0.4),
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="coach-card">
+                            <span class="coach-badge">🎯 Resposta do Treinador</span>
+                            <p>{resp.text.replace(chr(10), '<br>')}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    if "chat_messages" in st.session_state:
+                        st.session_state["chat_messages"].append({"role": "user", "content": pergunta_final})
+                        st.session_state["chat_messages"].append({"role": "assistant", "content": resp.text})
+                except Exception as e:
+                    st.error(f"Erro: {str(e)}")
+
+    st.caption("💡 *Dica:* Para ter conversas longas e completas com histórico, acesse a aba **'💬 Coach AI'**!")
+
+
+# ==============================================================================
+# BARRA SUPERIOR DE AÇÕES RÁPIDAS
+# ==============================================================================
+col_qa1, col_qa2 = st.columns(2, gap="medium")
+with col_qa1:
+    if st.button("📸 Registrar Treino com Print", type="primary", use_container_width=True, help="Abre janela rápida para carregar print do Strava, Garmin ou Polar."):
+        modal_registrar_treino_print()
+with col_qa2:
+    if st.button("💬 Conversar com o Coach AI", use_container_width=True, help="Abre consultoria rápida e tire dúvidas sobre ritmo, dores e treino."):
+        modal_conversar_coach()
+
+st.write("")
+
+# ==============================================================================
+# ABAS PRINCIPAIS (5 ABAS COMPLETAS E INTEGRADAS)
+# ==============================================================================
+tab_painel, tab_planilha, tab_historico, tab_chat, tab_ajuda = st.tabs([
+    "🏠 Meu Painel",
+    "📋 Montador de Treinos",
+    "📊 Histórico & Gráficos",
+    "💬 Coach AI",
+    "❓ Ajuda & Glossário",
+])
+
+# ------------------------------------------------------------------------------
+# ABA 1: MEU PAINEL (HOME / TREINO ATUAL EM DESTAQUE)
+# ------------------------------------------------------------------------------
+with tab_painel:
     df_crono, erro_crono = load_cronograma_from_sheets()
 
+    # 1. SPOTLIGHT HERO CARD: TREINO ATUAL / PRÓXIMA SESSÃO
+    st.markdown("### 🔥 Treino Atual em Destaque")
     if erro_crono:
         st.info(f"ℹ️ {erro_crono}")
     elif df_crono is None or df_crono.empty:
         st.info(
             "📋 Você ainda não possui treinos agendados no Cronograma. "
-            "Acesse a aba **'📋 Montador de Treinos'** para prescrever sua planilha semanal e sincronizá-la automaticamente com esta aba!"
+            "Acesse a aba **'📋 Montador de Treinos'** para prescrever sua planilha semanal com 1 clique!"
         )
     else:
-        # Métricas de Progresso da Planilha Prescrita
-        total_sessoes = len(df_crono)
-        concluidos = len(df_crono[df_crono["Status"].str.contains("Concluído", na=False)])
-        pendentes = total_sessoes - concluidos
-        pct_conclusao = (concluidos / total_sessoes) if total_sessoes > 0 else 0.0
-
-        km_planejados = df_crono["Distância (km)"].sum()
-        km_feitos = df_crono[df_crono["Status"].str.contains("Concluído", na=False)]["Distância (km)"].sum()
-
-        st.markdown(f"#### 🎯 Meta do Ciclo: {concluidos}/{total_sessoes} Sessões Concluídas ({pct_conclusao * 100:.0f}%)")
-        st.progress(pct_conclusao)
-
-        c_col1, c_col2, c_col3, c_col4 = st.columns(4)
-        with c_col1:
-            st.metric("⏳ Pendentes", f"{pendentes} treinos", help="Sessões da semana que você ainda vai realizar.")
-        with c_col2:
-            st.metric("✅ Concluídos", f"{concluidos} treinos", help="Sessões que você já executou e marcou o check-in!")
-        with c_col3:
-            st.metric("🏃 Km Concluídos", f"{km_feitos:.1f} / {km_planejados:.1f} km", help="Volume total percorrido em km contra o volume planejado para a semana.")
-        with c_col4:
-            st.metric("📊 Taxa de Adesão", f"{pct_conclusao * 100:.1f}%", help="Porcentagem de fidelidade da sua execução em relação à planilha prescrita.")
-
-        st.markdown("---")
-
-        # Localiza o próximo treino pendente (Hero Card)
         df_pendentes = df_crono[df_crono["Status"] == "Pendente"]
         if not df_pendentes.empty:
             proximo = df_pendentes.iloc[0]
@@ -992,8 +917,8 @@ with tab_cronograma:
             st.markdown(
                 f"""
                 <div class="next-workout-card">
-                    <span class="coach-badge" style="background: rgba(99, 102, 241, 0.3); color: #C7D2FE;">
-                        🔥 PRÓXIMO TREINO • {proximo['Dia da Semana']} ({proximo['Data Prevista']})
+                    <span class="coach-badge" style="background: rgba(99, 102, 241, 0.35); color: #C7D2FE;">
+                        🔥 PRÓXIMA SESSÃO • {proximo['Dia da Semana']} ({proximo['Data Prevista']})
                     </span>
                     <h3>{emoji_prefix}{tipo_raw}</h3>
                     <p>
@@ -1008,33 +933,114 @@ with tab_cronograma:
                 unsafe_allow_html=True,
             )
 
-            col_checkin, _ = st.columns([1.5, 3])
-            with col_checkin:
+            col_ck1, col_ck2 = st.columns([1.8, 2.2])
+            with col_ck1:
                 if st.button(
-                    "✅ Marcar este Treino como Feito / Concluído",
+                    "✅ Marcar como Feito / Concluído",
                     type="primary",
                     use_container_width=True,
-                    help="Terminou a corrida? Clique aqui para atualizar a linha do treino na planilha do Google Sheets com a data e horário exatos de conclusão!",
+                    key="btn_checkin_hero",
+                    help="Terminou a atividade? Clique para registrar a conclusão com data e horário no Google Sheets!",
                 ):
                     with st.spinner("Atualizando status na planilha Google Sheets..."):
                         sucesso_ck, msg_ck = mark_workout_as_completed(proximo_id)
                         if sucesso_ck:
                             st.balloons()
                             st.success(f"🎉 Parabéns atleta! {msg_ck}")
+                            time.sleep(1)
                             st.rerun()
                         else:
                             st.error(msg_ck)
+            with col_ck2:
+                if st.button(
+                    "📸 Enviar Print deste Treino",
+                    use_container_width=True,
+                    key="btn_print_hero",
+                    help="Envie o print do Garmin/Strava deste treino para receber análise técnica da IA.",
+                ):
+                    modal_registrar_treino_print()
         else:
-            st.success("🎉 Parabéns! Você concluiu todos os treinos prescritos para este ciclo. Que tal gerar uma nova planilha no 'Montador de Treinos'?")
+            st.success("🎉 Parabéns! Todos os treinos desta planilha foram concluídos. Que tal prescrever um novo ciclo na aba '📋 Montador de Treinos'?")
 
-        # Tabela Geral do Cronograma
+    # 2. FEEDBACK RECENTE DO TREINADOR (SE HOUVER TREINO ANALISADO RECENTEMENTE)
+    if "ultimo_treino" in st.session_state:
+        res: TreinoExtracao = st.session_state["ultimo_treino"]
         st.markdown("---")
-        st.markdown("#### 📋 Visão Completa do Cronograma")
-        
+        st.markdown("### 📋 Último Treino Analisado pelo Coach AI")
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        with m_col1:
+            st.metric("📏 Distância", f"{res.distancia_km:.2f} km")
+        with m_col2:
+            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km")
+        with m_col3:
+            fc_display = f"{res.fc_media} bpm" if res.fc_media > 0 else "Não detectada"
+            st.metric("❤️ FC Média", fc_display)
+        with m_col4:
+            minutos = int(res.tempo_min)
+            segundos = int(round((res.tempo_min - minutos) * 60))
+            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
+
+        st.markdown(
+            f"""
+            <div class="coach-card">
+                <span class="coach-badge">🎯 {res.zona_predominante} • Sessão de {res.data}</span>
+                <h3>📋 Parecer Técnico de Consultoria</h3>
+                <p>{res.parecer_treinador.replace(chr(10), '<br>')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # 3. MÉTRICAS DE ADESÃO DA SEMANA
+    if df_crono is not None and not df_crono.empty:
+        st.markdown("---")
+        st.markdown("### 📊 Progresso da Planilha Semanal")
+        total_sessoes = len(df_crono)
+        concluidos = len(df_crono[df_crono["Status"].str.contains("Concluído", na=False)])
+        pendentes = total_sessoes - concluidos
+        pct_conclusao = (concluidos / total_sessoes) if total_sessoes > 0 else 0.0
+
+        km_planejados = df_crono["Distância (km)"].sum()
+        km_feitos = df_crono[df_crono["Status"].str.contains("Concluído", na=False)]["Distância (km)"].sum()
+
+        st.progress(pct_conclusao)
+        c_col1, c_col2, c_col3, c_col4 = st.columns(4)
+        with c_col1:
+            st.metric("⏳ Pendentes", f"{pendentes} treinos")
+        with c_col2:
+            st.metric("✅ Concluídos", f"{concluidos} treinos")
+        with c_col3:
+            st.metric("🏃 Km Realizados", f"{km_feitos:.1f} / {km_planejados:.1f} km")
+        with c_col4:
+            st.metric("📊 Taxa de Adesão", f"{pct_conclusao * 100:.1f}%")
+
+        # 4. TABELA DO CRONOGRAMA
+        st.markdown("---")
+        st.markdown("#### 🗓️ Grade Completa do Cronograma")
+        col_btn_refresh_crono, col_btn_clear_crono, _ = st.columns([1.5, 1.5, 3])
+        with col_btn_refresh_crono:
+            btn_refresh_crono = st.button("🔄 Atualizar Grade", use_container_width=True, key="btn_ref_crono_panel")
+            if btn_refresh_crono:
+                st.cache_data.clear()
+                st.rerun()
+
+        with col_btn_clear_crono:
+            with st.popover("🗑️ Limpar Grade", help="Clique para apagar os treinos agendados e começar uma planilha nova."):
+                st.write("Deseja apagar todos os treinos da planilha 'Cronograma'?")
+                if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True, key="btn_confirm_clear_panel"):
+                    with st.spinner("Limpando sessões da planilha..."):
+                        ok_cl, msg_cl = clear_cronograma_in_sheets()
+                        if ok_cl:
+                            st.success(msg_cl)
+                            st.rerun()
+                        else:
+                            st.error(msg_cl)
+
         filtro_status = st.radio(
-            "Filtrar por Status:",
+            "Filtrar grade:",
             ["Todos", "Apenas Pendentes ⏳", "Apenas Concluídos ✅"],
             horizontal=True,
+            key="filtro_status_painel",
         )
 
         df_exibir_crono = df_crono.copy()
@@ -1054,6 +1060,47 @@ with tab_cronograma:
             use_container_width=True,
             hide_index=True,
         )
+
+    # 5. UPLOAD DIRETO OPCIONAL (SEM POPUP)
+    with st.expander("📤 Preferir registrar treino com print diretamente nesta tela?"):
+        col_up_in, col_inputs_in = st.columns([1.2, 1], gap="medium")
+        with col_up_in:
+            up_inline = st.file_uploader(
+                "Print do Treino",
+                type=["png", "jpg", "jpeg", "webp"],
+                key="up_inline_painel",
+            )
+            if up_inline:
+                st.image(up_inline, caption="Visualização do Print Enviado", use_container_width=True)
+        with col_inputs_in:
+            rpe_in = st.slider("RPE (1-10)", 1, 10, 6, key="rpe_inline_painel")
+            user_notes_in = st.text_area("Notas e Sensações", height=100, key="notes_inline_painel")
+            if st.button("🚀 Analisar Treino Inline", type="primary", use_container_width=True, key="btn_analisar_inline"):
+                if not up_inline:
+                    st.warning("⚠️ Selecione um print de treino.")
+                else:
+                    client = get_gemini_client()
+                    if client:
+                        with st.spinner("🏃 Analisando com Gemini 2.5 Flash..."):
+                            try:
+                                res_in = analyze_workout_image(
+                                    image_bytes=up_inline.getvalue(),
+                                    mime_type=up_inline.type or "image/jpeg",
+                                    rpe=rpe_in,
+                                    user_notes=user_notes_in,
+                                    gemini_client=client,
+                                )
+                                salvo_in, msg_s_in = append_workout_to_sheets(res_in, rpe_in, user_notes_in)
+                                st.session_state["ultimo_treino"] = res_in
+                                st.session_state["sheets_salvo"] = salvo_in
+                                st.session_state["sheets_msg"] = msg_s_in
+                                st.cache_data.clear()
+                                st.balloons()
+                                st.success("✅ Treino analisado e registrado com sucesso!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro: {str(e)}")
 
 # ------------------------------------------------------------------------------
 # ABA 3: HISTÓRICO E GRÁFICOS
@@ -1523,3 +1570,72 @@ Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informa
                 mime="text/markdown",
                 use_container_width=True,
             )
+
+# ------------------------------------------------------------------------------
+# ABA 5: AJUDA, GUIA DO ATLETA & GLOSSÁRIO
+# ------------------------------------------------------------------------------
+with tab_ajuda:
+    st.markdown("### ❓ Central de Ajuda & Glossário do Atleta")
+    st.write("Tudo o que você precisa saber para transformar o Coach em app no celular, entender os jargões e aproveitar ao máximo.")
+
+    tab_guia_mobile, tab_glossario_completo = st.tabs([
+        "📲 Como Usar no Celular",
+        "📖 Dicionário de Corrida & Triatlo",
+    ])
+
+    with tab_guia_mobile:
+        st.markdown(
+            """
+            #### 📲 Como transformar em app no seu celular:
+            - **No iPhone (Safari):** Toque no ícone de compartilhar (quadrado com seta) e selecione **"Adicionar à Tela de Início"**.
+            - **No Android (Chrome):** Toque nos 3 pontinhos no canto superior e selecione **"Adicionar à tela inicial"** ou **"Instalar aplicativo"**.
+
+            ---
+            #### 🏃 Rotina Rápida em 4 Passos:
+            1. **📅 Ver o Treino do Dia:** Logo na aba **"🏠 Meu Painel"**, confira o card do *Treino Atual* com ritmo, distância e estrutura.
+            2. **✅ Fazer Check-in:** Terminou o treino? Dê 1 clique no botão **"✅ Marcar como Feito"** para atualizar sua planilha.
+            3. **📸 Subir o Print:** Clique no botão superior **"📸 Registrar Treino com Print"** para que a IA analise ritmo, FC e dê o parecer.
+            4. **💬 Conversar com o Coach:** Clique em **"💬 Conversar com o Coach AI"** para tirar dúvidas sobre dores, ritmo e alimentação.
+
+            ---
+            #### ⚠️ Dicas e Limites do Sistema:
+            - **Prints nítidos:** O print do Garmin, Strava ou Polar deve mostrar claramente distância, tempo e pace médio.
+            - **Atualização rápida:** O sistema sincroniza a cada 60s; use o botão **🔄 Atualizar** caso tenha editado a planilha externamente.
+            - **Saúde em 1º lugar:** O Coach AI é um assistente de treinamento; dores agudas persistentes exigem avaliação de um fisioterapeuta ou médico.
+            """
+        )
+
+    with tab_glossario_completo:
+        st.markdown(
+            """
+            #### 🏃 Termos Essenciais da Corrida:
+            - **Pace (Ritmo):** Tempo gasto para percorrer **1 quilômetro** (formato mm:ss /km).  
+              *Exemplo:* Pace de `05:30/km` significa 5 minutos e 30 segundos por km. **Quanto menor o número, mais rápido você correu!**
+            - **RPE (Escala de Borg / Percepção de Esforço):** Nota de **1 a 10** de cansaço:  
+              *1:* Muito leve | *3:* Zona 2 aeróbica confortável | *5:* Ritmo de Maratona | *7-8:* Forte / Limiar | *10:* Exaustão máxima.
+            - **FC (Frequência Cardíaca) & BPM:** Batimentos Por Minuto do seu coração captados pelo relógio ou cinta.
+            - **Longão (Long Run):** Treino com maior distância da semana (geralmente domingo), focado em resistência pura em Zona 2.
+            - **Tiros / Intervalado:** Séries de alta velocidade intercaladas com descanso ativo ou parado para aumentar VO2 Máx.
+            - **Fartlek:** Treino contínuo com variações livres de velocidade em percurso variado.
+
+            ---
+            #### ❤️ Zonas de Frequência Cardíaca (Z1 a Z5):
+            - **Z1 (Regenerativo):** Trote levíssimo pós-treino forte ou descanso ativo.
+            - **Z2 (Base Aeróbica pura):** Ritmo conversacional, respiração fácil. Constrói a rede mitocondrial e queima gordura.
+            - **Z3 (Ritmo / Tempo Run):** Ritmo de prova de Meia Maratona ou Maratona. Moderado-firme contínuo.
+            - **Z4 (Limiar de Lactato / Threshold):** Ritmo forte sustentável por 30 a 60 min. Respiração pesada.
+            - **Z5 (VO2 Máx / Anaeróbico):** Esforço máximo para tiros curtos e explosivos.
+
+            ---
+            #### 🏊🚴🏃 Termos de Triatlo (Multiesporte):
+            - **Brick (Transição):** Treino que combina Ciclismo forte seguido imediatamente de Corrida para ensinar o corpo a correr com "pernas de chumbo".
+            - **Cadência (RPM / SpM):**
+              - *Corrida:* Passos por minuto (ideal entre 165 e 180 passos/min).
+              - *Ciclismo:* Giros do pedal por minuto (ideal entre 85 e 95 RPM).
+            - **Distâncias de Provas de Triatlo:**
+              - *Sprint:* 750m Natação + 20km Ciclismo + 5km Corrida.
+              - *Olímpico / Standard:* 1.500m Natação + 40km Ciclismo + 10km Corrida.
+              - *Meio Ironman (70.3):* 1,9km Natação + 90km Ciclismo + 21,1km Corrida (113 km total).
+              - *Ironman Completo (140.6):* 3,8km Natação + 180km Ciclismo + 42,2km Corrida (226 km total).
+            """
+        )
