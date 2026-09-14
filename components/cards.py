@@ -11,8 +11,7 @@ from config import TreinoExtracao, PlanoSemanalPrescrito
 
 def render_next_workout_card(
     proximo: Any,
-    on_complete: Callable[[str], None],
-    on_attach: Callable[[], None],
+    on_concluir: Callable[[Any], None],
 ):
     """
     Renderiza o card de Treino Atual / Próxima Sessão utilizando st.container(border=True) nativo.
@@ -33,7 +32,7 @@ def render_next_workout_card(
 
         st.markdown(f"**Estrutura da Sessão:**\n\n{proximo.get('Estrutura do Treino', '')}")
 
-        btn_col1, btn_col2 = st.columns([1.5, 1])
+        btn_col1, btn_col2 = st.columns([2, 1])
         with btn_col1:
             if st.button(
                 "Concluir Treino",
@@ -41,17 +40,19 @@ def render_next_workout_card(
                 use_container_width=True,
                 key="btn_complete_hero",
                 icon=":material/check_circle:",
+                help="Conclua enviando o print da atividade ou inserindo os dados manualmente",
             ):
-                on_complete(proximo_id)
+                on_concluir(proximo)
 
         with btn_col2:
             if st.button(
-                "Anexar Print",
+                "Pular Sessão",
                 use_container_width=True,
-                key="btn_attach_hero",
-                icon=":material/upload_file:",
+                key="btn_skip_hero",
+                icon=":material/skip_next:",
+                help="Pula esta sessão e avança para a próxima da semana",
             ):
-                on_attach()
+                on_concluir(proximo)
 
 
 def render_feedback_card(res: TreinoExtracao):

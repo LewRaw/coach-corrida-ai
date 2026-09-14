@@ -13,7 +13,7 @@ from services.data_service import (
     clear_cronograma_data,
 )
 from components.cards import render_next_workout_card, render_feedback_card
-from components.dialogs import modal_registrar_treino_print
+from components.dialogs import modal_concluir_treino
 
 
 def render():
@@ -55,19 +55,9 @@ def render():
         if not df_pendentes.empty:
             proximo = df_pendentes.iloc[0]
 
-            def handle_complete_workout(w_id: str):
-                with st.spinner("Atualizando status do treino..."):
-                    sucesso, msg = mark_workout_as_completed_data(w_id)
-                    if sucesso:
-                        st.toast("Treino marcado como concluído!")
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
             render_next_workout_card(
                 proximo=proximo,
-                on_complete=handle_complete_workout,
-                on_attach=modal_registrar_treino_print,
+                on_concluir=modal_concluir_treino,
             )
         else:
             st.success("Parabéns! Todas as sessões prescritas desta semana foram concluídas.")

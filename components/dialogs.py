@@ -1,16 +1,21 @@
 """
 Diálogos Modais (@st.dialog) do Coach AI
-Onboarding, Ajuste de Focos/Esportes e Upload de Print de Atividade
+Onboarding, Ajuste de Focos/Esportes e Conclusão de Treinos (Print, Manual ou Pular)
 """
 
+from typing import Any, Optional
 import streamlit as st
-from config import ESPORTES_OPCOES
+from config import ESPORTES_OPCOES, TreinoExtracao
 from services.auth_service import (
     get_current_user_id,
     get_athlete_profile,
     update_user_profile,
 )
-from services.data_service import append_workout_data
+from services.data_service import (
+    append_workout_data,
+    mark_workout_as_completed_data,
+    delete_workout_from_cronograma_data,
+)
 from services.ai_coach import get_gemini_client, analyze_workout_image
 
 
@@ -127,56 +132,238 @@ def modal_meus_esportes():
         st.rerun()
 
 
-@st.dialog("Registrar Treino com Print")
-def modal_registrar_treino_print():
-    """Modal de envio e análise de imagem da atividade (Garmin, Strava, Polar, etc.)."""
-    st.markdown("Carregue a captura de tela do seu relógio ou aplicativo para receber parecer técnico e salvar no histórico.")
+@st.dialog("Concluir Treino")
+def modal_concluir_treino(proximo: Any = None):
+    """
+    Modal para conclusão de treino obrigatória com 3 opções:
+    1. Enviar Print (relógio/app com análise de IA)
+    2. Inserir Manualmente (esteira, sem relógio, esportes coletivos)
+    3. Pular Treino (remove do planejamento e avança para a próxima sessão)
+    """
+    proximo_id = ""
+    tipo_treino_str = "Treino Prescrito"
+    dia_str = ""
+    dist_sugerida = 0.0
+    dur_sugerida = 45.0
+    pace_sugerido = ""
+    rpe_sugerido = 5
 
-    uploaded_file = st.file_uploader(
-        "Captura de tela da atividade:",
-        type=["png", "jpg", "jpeg", "webp"],
-        key="upload_print_modal",
-    )
+    if proximo is not None:
+        proximo_id = str(proximo["ID"]) if "ID" in proximo else (str(proximo["id"]) if "id" in proximo else str(proximo.name))
+        tipo_treino_str = str(proximo.get("Tipo de Treino", "Treino"))
+        dia_str = f"{proximo.get('Dia da Semana', '')} ({proximo.get('Data Prevista', '')})"
+        dist_sugerida = float(proximo.get("Distância (km)", 0.0) or 0.0)
+        dur_sugerida = float(proximo.get("Duração (min)", 45.0) or 45.0)
+        pace_sugerido = str(proximo.get("Pace Alvo", "") or "")
+        rpe_sugerido = int(proximo.get("RPE Alvo", 5) or 5)
 
-    if uploaded_file:
-        st.image(uploaded_file, caption="Visualização do Print Enviado", use_container_width=True)
+        st.caption(f"Sessão: **{tipo_treino_str}** • {dia_str}")
 
-    rpe = st.slider(
-        "Esforço Percebido (Escala Borg 1 a 10):",
-        min_value=1,
-        max_value=10,
-        value=5,
-        help="1: Muito leve | 3: Zona 2 confortável | 5: Ritmo de prova | 7-8: Limiar / Tiros | 10: Exaustão",
-    )
+    tab_print, tab_manual, tab_skip = st.tabs([
+        "Enviar Print",
+        "Inserir Manualmente",
+        "Pular Treino",
+    ])
 
-    user_notes = st.text_area(
-        "Comentários ou sensações:",
-        placeholder="Ex: Foco em manter Z2; calor elevado no km final; boa resposta nas pernas.",
-        height=90,
-    )
+    # ==========================================
+    # ABA 1: ENVIAR PRINT (GALERIA / FOTO)
+    # ==========================================
+    with tab_print:
+        st.markdown("Carregue a captura de tela do Garmin Connect, Strava, Polar ou Apple Fitness para a IA extrair ritmo, FC e fornecer parecer técnico.")
 
-    if st.button("Analisar e Salvar Atividade", type="primary", use_container_width=True, icon=":material/analytics:"):
-        if not uploaded_file:
-            st.warning("Selecione uma imagem de treino antes de continuar.")
-        else:
-            client = get_gemini_client()
-            if not client:
-                st.error("Chave de Inteligência Artificial não configurada.")
+        uploaded_file = st.file_uploader(
+            "Captura de tela da atividade:",
+            type=["png", "jpg", "jpeg", "webp"],
+            key="upload_concluir_print",
+        )
+
+        if uploaded_file:
+            st.image(uploaded_file, caption="Visualização do Print Enviado", use_container_width=True)
+
+        rpe_print = st.slider(
+            "Esforço Percebido (Escala Borg 1 a 10):",
+            min_value=1,
+            max_value=10,
+            value=rpe_sugerido,
+            key="rpe_concluir_print",
+            help="1: Muito leve | 3: Zona 2 confortável | 5: Ritmo de prova | 7-8: Limiar / Tiros | 10: Exaustão",
+        )
+
+        notes_print = st.text_area(
+            "Comentários ou sensações da sessão:",
+            placeholder="Ex: Treino concluído conforme o planejamento; hidratação constante.",
+            height=80,
+            key="notes_concluir_print",
+        )
+
+        if st.button("Analisar Print e Concluir Treino", type="primary", use_container_width=True, icon=":material/analytics:", key="btn_exec_concluir_print"):
+            if not uploaded_file:
+                st.warning("Por favor, selecione uma captura de tela da atividade antes de concluir.")
             else:
-                with st.spinner("Analisando atividade com o Treinador..."):
-                    try:
-                        analise = analyze_workout_image(
-                            image_bytes=uploaded_file.getvalue(),
-                            mime_type=uploaded_file.type or "image/jpeg",
-                            rpe=rpe,
-                            user_notes=user_notes,
-                            gemini_client=client,
-                        )
-                        salvo, msg_salvo = append_workout_data(analise, rpe, user_notes)
-                        st.session_state["ultimo_treino"] = analise
-                        st.cache_data.clear()
-                        if salvo:
-                            st.toast("Treino registrado com sucesso!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro na análise: {str(e)}")
+                client = get_gemini_client()
+                if not client:
+                    st.error("Chave de Inteligência Artificial não configurada.")
+                else:
+                    with st.spinner("Analisando atividade com o Treinador..."):
+                        try:
+                            analise = analyze_workout_image(
+                                image_bytes=uploaded_file.getvalue(),
+                                mime_type=uploaded_file.type or "image/jpeg",
+                                rpe=rpe_print,
+                                user_notes=notes_print,
+                                gemini_client=client,
+                            )
+                            append_workout_data(analise, rpe_print, notes_print)
+                            if proximo_id:
+                                mark_workout_as_completed_data(proximo_id)
+                            st.session_state["ultimo_treino"] = analise
+                            st.cache_data.clear()
+                            st.toast("Treino concluído com análise técnica da IA!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro na análise: {str(e)}")
+
+    # ==========================================
+    # ABA 2: INSERIR DADOS MANUALMENTE
+    # ==========================================
+    with tab_manual:
+        st.markdown("Correu na esteira, esqueceu o relógio ou participou de esporte coletivo? Informe os dados reais abaixo:")
+
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            modalidades = ["Corrida", "Ciclismo", "Natação", "Futebol", "Basquete", "Vôlei", "Musculação", "Outro"]
+            idx_mod = 0
+            for i, m in enumerate(modalidades):
+                if m.lower() in tipo_treino_str.lower():
+                    idx_mod = i
+                    break
+            modalidade_man = st.selectbox("Modalidade executada:", options=modalidades, index=idx_mod, key="mod_concluir_man")
+
+        with col_m2:
+            zona_man = st.selectbox(
+                "Zona / Intensidade Predominante:",
+                options=[
+                    "Z1 Regenerativo",
+                    "Z2 Rodagem Aeróbica",
+                    "Z3 Tempo / Ritmo",
+                    "Z4 Limiar",
+                    "Z5 VO2 Máx / Explosão",
+                    "Força / Mobilidade",
+                    "Intensidade de Partida",
+                ],
+                index=1 if "Z2" in pace_sugerido or dist_sugerida > 0 else 0,
+                key="zona_concluir_man",
+            )
+
+        col_m3, col_m4, col_m5 = st.columns(3)
+        with col_m3:
+            dist_man = st.number_input(
+                "Distância (km):",
+                min_value=0.0,
+                max_value=250.0,
+                value=dist_sugerida,
+                step=0.1,
+                format="%.2f",
+                key="dist_concluir_man",
+            )
+        with col_m4:
+            dur_man = st.number_input(
+                "Duração (minutos):",
+                min_value=1.0,
+                max_value=600.0,
+                value=dur_sugerida if dur_sugerida > 0 else 45.0,
+                step=1.0,
+                format="%.0f",
+                key="dur_concluir_man",
+            )
+        with col_m5:
+            # Cálculo automático do ritmo médio estimado se preenchido km e tempo
+            pace_estimado = pace_sugerido
+            if dist_man > 0 and dur_man > 0:
+                min_km = dur_man / dist_man
+                min_i = int(min_km)
+                sec_i = int(round((min_km - min_i) * 60))
+                if sec_i >= 60:
+                    min_i += 1
+                    sec_i = 0
+                pace_estimado = f"{min_i:02d}:{sec_i:02d}/km"
+
+            pace_man = st.text_input(
+                "Ritmo Médio / Pace:",
+                value=pace_estimado or "05:30/km",
+                placeholder="Ex: 05:30/km",
+                key="pace_concluir_man",
+            )
+
+        col_m6, col_m7 = st.columns(2)
+        with col_m6:
+            fc_man = st.number_input(
+                "FC Média (bpm, opcional):",
+                min_value=0,
+                max_value=240,
+                value=0,
+                step=1,
+                help="Deixe 0 se não utilizou monitor de frequência cardíaca.",
+                key="fc_concluir_man",
+            )
+        with col_m7:
+            rpe_man = st.slider(
+                "Esforço Percebido (RPE 1-10):",
+                min_value=1,
+                max_value=10,
+                value=rpe_sugerido,
+                key="rpe_concluir_man_slider",
+            )
+
+        notes_man = st.text_area(
+            "Notas e comentários da sessão:",
+            placeholder="Ex: Treino na esteira da academia com inclinação leve. Ritmo confortável.",
+            height=70,
+            key="notes_concluir_man",
+        )
+
+        if st.button("Salvar Dados e Concluir Treino", type="primary", use_container_width=True, icon=":material/check_circle:", key="btn_exec_concluir_man"):
+            analise_manual = TreinoExtracao(
+                distancia_km=float(dist_man),
+                tempo_min=float(dur_man),
+                pace_medio=str(pace_man).strip() or f"{dur_man:.0f} min",
+                fc_media=int(fc_man),
+                zona_predominante=str(zona_man),
+                modalidade=str(modalidade_man),
+                parecer_treinador=(
+                    f"Sessão de {modalidade_man} registrada manualmente pelo atleta ({dist_man:.1f} km em {dur_man:.0f} min, "
+                    f"RPE {rpe_man}/10). Treino validado e computado com sucesso no volume de treinamento."
+                ),
+            )
+            append_workout_data(analise_manual, rpe_man, notes_man)
+            if proximo_id:
+                mark_workout_as_completed_data(proximo_id)
+            st.session_state["ultimo_treino"] = analise_manual
+            st.cache_data.clear()
+            st.toast("Treino registrado manualmente com sucesso!")
+            st.rerun()
+
+    # ==========================================
+    # ABA 3: PULAR TREINO
+    # ==========================================
+    with tab_skip:
+        st.markdown(
+            "Imprevistos acontecem na rotina (chuva, compromissos ou necessidade de descanso extra). "
+            "Ao pular esta sessão, ela será **removida do planejamento** desta semana e a próxima sessão assumirá o destaque do seu Painel imediatamente."
+        )
+
+        st.warning(f"Confirma a remoção da sessão **'{tipo_treino_str}'** do seu cronograma?")
+
+        if st.button("Confirmar e Pular este Treino", type="secondary", use_container_width=True, icon=":material/delete_sweep:", key="btn_exec_pular_treino"):
+            if proximo_id:
+                delete_workout_from_cronograma_data(proximo_id)
+                st.cache_data.clear()
+                st.toast("Sessão pulada! A próxima sessão já assumiu o topo do seu Painel.")
+                st.rerun()
+            else:
+                st.info("Nenhuma sessão pendente selecionada para pular.")
+
+
+def modal_registrar_treino_print():
+    """Compatibilidade para upload direto de print sem sessão agendada."""
+    modal_concluir_treino(None)

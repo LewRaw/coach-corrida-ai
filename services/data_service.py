@@ -207,6 +207,19 @@ def clear_cronograma_in_supabase(user_id: str) -> Tuple[bool, str]:
         return False, f"Erro ao limpar cronograma: {str(e)}"
 
 
+def delete_workout_from_supabase(workout_id: str, user_id: str) -> Tuple[bool, str]:
+    """Remove uma sessão específica do cronograma no Supabase (pular treino)."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False, "Serviço de dados não configurado."
+    try:
+        sb.table("schedules").delete().eq("id", workout_id).eq("user_id", user_id).execute()
+        st.cache_data.clear()
+        return True, "Sessão removida do planejamento."
+    except Exception as e:
+        return False, f"Erro ao remover sessão: {str(e)}"
+
+
 # ==============================================================================
 # CONTINGÊNCIA GOOGLE SHEETS
 # ==============================================================================
@@ -445,8 +458,30 @@ def mark_workout_as_completed_sheets(workout_id: str) -> Tuple[bool, str]:
         return False, f"Erro ao atualizar: {str(e)}"
 
 
+def delete_workout_from_sheets(workout_id: str) -> Tuple[bool, str]:
+    """Remove uma sessão específica do cronograma no Google Sheets (pular treino)."""
+    sheet_url = get_secret_val("sheet_url")
+    if not sheet_url:
+        return False, "Planilha não configurada."
+    try:
+        ws = get_cached_worksheet(sheet_url, "Cronograma")
+        if not ws:
+            return False, "Aba não encontrada."
+        vals = run_with_retry(lambda: ws.get_all_values())
+        if not vals:
+            return False, "Cronograma vazio."
+        for idx, row in enumerate(vals[1:], start=2):
+            if row and row[0] == workout_id:
+                ws.delete_rows(idx)
+                st.cache_data.clear()
+                return True, "Sessão removida do planejamento."
+        return False, "Treino não encontrado."
+    except Exception as e:
+        return False, f"Erro ao remover: {str(e)}"
+
+
 # ==============================================================================
-# CAMADA DE DADOS UNIFICADA (ROTEAMENTO INTELIGENTE)
+# CAMADA DE DADOS UNIFICADA (ROTEAMENTE INTELIGENTE)
 # ==============================================================================
 def load_workouts_data() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """Carrega treinos do atleta: Supabase (se logado) ou Google Sheets como fallback."""
@@ -478,6 +513,14 @@ def mark_workout_as_completed_data(workout_id: str) -> Tuple[bool, str]:
     if uid:
         return mark_workout_as_completed_supabase(workout_id, uid)
     return mark_workout_as_completed_sheets(workout_id)
+
+
+def delete_workout_from_cronograma_data(workout_id: str) -> Tuple[bool, str]:
+    """Remove uma sessão específica do cronograma (pular treino)."""
+    uid = get_current_user_id()
+    if uid:
+        return delete_workout_from_supabase(workout_id, uid)
+    return delete_workout_from_sheets(workout_id)
 
 
 def save_weekly_plan_data(plano: PlanoSemanalPrescrito) -> Tuple[bool, str]:
