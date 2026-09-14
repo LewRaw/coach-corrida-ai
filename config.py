@@ -171,24 +171,33 @@ def parse_float_br(val: Any) -> float:
         return 0.0
 
 
+from collections.abc import Mapping
+
+
 def get_secret_val(key: str, default: Any = None) -> Any:
-    """Busca chave primeiro em st.secrets, depois em os.environ com suporte a maiúsculas/minúsculas."""
+    """Busca chave primeiro em st.secrets (inclusive seções aninhadas), depois em os.environ."""
+    target_lower = key.lower()
+
+    def search_mapping(m: Any) -> Any:
+        if isinstance(m, Mapping):
+            for k, v in m.items():
+                if str(k).lower() == target_lower and v is not None:
+                    return v
+            for v in m.values():
+                res = search_mapping(v)
+                if res is not None:
+                    return res
+        return None
+
     try:
-        if key in st.secrets:
-            return st.secrets[key]
-        lower_k = key.lower()
-        if lower_k in st.secrets:
-            return st.secrets[lower_k]
-        upper_k = key.upper()
-        if upper_k in st.secrets:
-            return st.secrets[upper_k]
+        val = search_mapping(st.secrets)
+        if val is not None:
+            return val
     except Exception:
         pass
 
-    if key in os.environ:
-        return os.environ[key]
-    if key.lower() in os.environ:
-        return os.environ[key.lower()]
-    if key.upper() in os.environ:
-        return os.environ[key.upper()]
+    for env_k, env_v in os.environ.items():
+        if env_k.lower() == target_lower and env_v is not None:
+            return env_v
+
     return default

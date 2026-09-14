@@ -12,69 +12,103 @@ from supabase import create_client, Client
 from config import get_secret_val
 
 
+import os
+import re
+from collections.abc import Mapping
+from supabase import create_client, Client
+
+from config import get_secret_val
+
+
 _supabase_client_inst: Optional[Client] = None
 _supabase_admin_inst: Optional[Client] = None
 
 
-def find_key_recursive(d: Any, target_keys: List[str]) -> Optional[str]:
-    """Busca recursiva insensível a maiúsculas/minúsculas em dicionários aninhados."""
-    if not isinstance(d, (dict, list)):
-        return None
-    lowers = [k.lower() for k in target_keys]
-
-    if isinstance(d, dict):
-        for k, v in d.items():
-            if str(k).lower() in lowers and v and str(v).strip():
-                return str(v).strip()
-        for v in d.values():
-            found = find_key_recursive(v, target_keys)
-            if found:
-                return found
-    elif isinstance(d, list):
-        for item in d:
-            found = find_key_recursive(item, target_keys)
-            if found:
-                return found
-    return None
-
-
 def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """Recupera URL, Chave Pública e Chave de Serviço do Supabase."""
-    url = None
-    key = None
-    secret = None
+    """Recupera URL, Chave Pública e Chave de Serviço do Supabase em qualquer formato nos Secrets ou Environ."""
+    url, key, secret = None, None, None
 
-    url_keys = ["SUPABASE_URL", "supabase_url", "URL", "url", "ENDPOINT", "endpoint"]
-    key_keys = ["SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "supabase_anon_key", "ANON_KEY", "anon_key", "KEY", "key"]
-    sec_keys = ["SUPABASE_SERVICE_ROLE_KEY", "supabase_service_role_key", "SUPABASE_SERVICE_KEY", "SUPABASE_SECRET", "supabase_secret", "SERVICE_ROLE_KEY", "service_role_key", "SECRET", "secret"]
+    url_keys = [
+        "supabase_url", "supabase_project_url", "url", "endpoint",
+        "supabase_endpoint", "project_url", "supabase_base_url", "base_url", "host"
+    ]
+    key_keys = [
+        "supabase_key", "supabase_anon_key", "supabase_publishable_key",
+        "anon_key", "publishable_key", "public_key", "key", "supabase_public_key",
+        "anon", "publishable", "public"
+    ]
+    sec_keys = [
+        "supabase_secret_key", "supabase_service_role_key", "supabase_service_key",
+        "supabase_secret", "service_role_key", "secret_key", "service_key",
+        "secret", "service_role", "role_key"
+    ]
 
+    def walk_all(obj):
+        if isinstance(obj, Mapping):
+            for k, v in obj.items():
+                yield str(k), v
+                yield from walk_all(v)
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                yield from walk_all(item)
+
+    all_pairs = []
     try:
-        url = find_key_recursive(st.secrets, url_keys)
-        key = find_key_recursive(st.secrets, key_keys)
-        secret = find_key_recursive(st.secrets, sec_keys)
+        all_pairs.extend(list(walk_all(st.secrets)))
     except Exception:
         pass
 
-    if not url:
-        for k in url_keys:
-            val = get_secret_val(k)
-            if val:
-                url = str(val).strip()
-                break
+    try:
+        all_pairs.extend([(k, v) for k, v in os.environ.items()])
+    except Exception:
+        pass
 
-    if not key:
-        for k in key_keys:
-            val = get_secret_val(k)
-            if val:
-                key = str(val).strip()
-                break
+    # 1. Busca direta por nome de chave
+    for k, v in all_pairs:
+        if not isinstance(v, str):
+            continue
+        val = v.strip().strip("\"'")
+        if not val:
+            continue
+        k_lower = k.lower()
+        if not url and k_lower in url_keys:
+            url = val
+        if not key and k_lower in key_keys:
+            key = val
+        if not secret and k_lower in sec_keys:
+            secret = val
 
-    if not secret:
-        for k in sec_keys:
-            val = get_secret_val(k)
-            if val:
-                secret = str(val).strip()
-                break
+    # 2. Busca heurística inteligente por formato do conteúdo
+    for _, v in all_pairs:
+        if not isinstance(v, str):
+            continue
+        val = v.strip().strip("\"'")
+        if not val:
+            continue
+        if not url:
+            if "supabase.co" in val:
+                url = val
+            elif "supabase.com/dashboard/project/" in val:
+                m = re.search(r"supabase\.com/dashboard/project/([a-zA-Z0-9_-]+)", val)
+                if m:
+                    url = f"https://{m.group(1)}.supabase.co"
+        if not key:
+            if val.startswith("sb_publishable_"):
+                key = val
+        if not secret:
+            if val.startswith("sb_secret_"):
+                secret = val
+
+    # 3. Normalização e sanitização da URL
+    if url:
+        if "supabase.com/dashboard/project/" in url:
+            m = re.search(r"supabase\.com/dashboard/project/([a-zA-Z0-9_-]+)", url)
+            if m:
+                url = f"https://{m.group(1)}.supabase.co"
+        url = re.sub(r"/rest/v1/?$", "", url)
+        url = url.rstrip("/")
+        if not url.startswith("http"):
+            url = f"https://{url}"
 
     return url, key, secret
 
@@ -92,12 +126,13 @@ def get_supabase_client() -> Optional[Client]:
     if _supabase_client_inst is not None:
         return _supabase_client_inst
 
-    url, key, _ = get_supabase_credentials()
-    if not url or not key:
+    url, key, secret = get_supabase_credentials()
+    effective_key = key or secret
+    if not url or not effective_key:
         return None
 
     try:
-        _supabase_client_inst = create_client(url, key)
+        _supabase_client_inst = create_client(url, effective_key)
         return _supabase_client_inst
     except Exception as e:
         st.error(f"Erro ao inicializar conexão com o banco de dados: {e}")
@@ -110,12 +145,13 @@ def get_supabase_admin() -> Optional[Client]:
     if _supabase_admin_inst is not None:
         return _supabase_admin_inst
 
-    url, _, secret_key = get_supabase_credentials()
-    if not url or not secret_key:
+    url, key, secret = get_supabase_credentials()
+    effective_secret = secret or key
+    if not url or not effective_secret:
         return None
 
     try:
-        _supabase_admin_inst = create_client(url, secret_key)
+        _supabase_admin_inst = create_client(url, effective_secret)
         return _supabase_admin_inst
     except Exception:
         return None
@@ -256,7 +292,14 @@ def auth_sign_in(email: str, password: str, remember: bool = True) -> Tuple[bool
     """Autentica o atleta por e-mail e senha no Supabase Auth com suporte a token persistente."""
     sb = get_supabase_client()
     if not sb:
-        return False, "Serviço de autenticação não configurado no servidor."
+        url, key, secret = get_supabase_credentials()
+        faltantes = []
+        if not url:
+            faltantes.append("'supabase_url'")
+        if not (key or secret):
+            faltantes.append("'supabase_key'")
+        motivo = f" (ausente em Secrets: {', '.join(faltantes)})" if faltantes else ""
+        return False, f"Serviço de autenticação não configurado no servidor{motivo}. Verifique em App Settings > Secrets."
 
     try:
         res = sb.auth.sign_in_with_password({"email": email.strip(), "password": password})
@@ -305,7 +348,14 @@ def auth_sign_up(email: str, password: str, name: str, remember: bool = True) ->
     sb_admin = get_supabase_admin()
     sb = get_supabase_client()
     if not (sb or sb_admin):
-        return False, "Serviço de autenticação não configurado no servidor."
+        url, key, secret = get_supabase_credentials()
+        faltantes = []
+        if not url:
+            faltantes.append("'supabase_url'")
+        if not (key or secret):
+            faltantes.append("'supabase_key'")
+        motivo = f" (ausente em Secrets: {', '.join(faltantes)})" if faltantes else ""
+        return False, f"Serviço de autenticação não configurado no servidor{motivo}. Verifique em App Settings > Secrets."
 
     try:
         target_client = sb_admin or sb
@@ -391,6 +441,24 @@ def render_login_screen():
     with col_center:
         st.write("")
         st.write("")
+
+        url_t, key_t, sec_t = get_supabase_credentials()
+        if not url_t or not (key_t or sec_t):
+            with st.container(border=True):
+                st.warning(
+                    "⚠️ **Configuração do Banco de Dados Pendente no Streamlit Cloud:**\n\n"
+                    "O aplicativo não detectou as chaves de conexão. Verifique se foram salvas em "
+                    "**App Settings ➔ Secrets** no seguinte formato:\n\n"
+                    "```toml\n"
+                    "supabase_url = \"https://seu-id.supabase.co\"\n"
+                    "supabase_key = \"sb_publishable_...\"\n"
+                    "supabase_secret_key = \"sb_secret_...\"\n"
+                    "```"
+                )
+                if st.button("Recarregar Conexão", icon=":material/refresh:", use_container_width=True):
+                    reset_supabase_client_cache()
+                    st.rerun()
+
         with st.container(border=True):
             st.title("Coach AI")
             st.caption("Consultoria esportiva e periodização inteligente personalizada")
