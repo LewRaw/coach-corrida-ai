@@ -24,6 +24,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pydantic import BaseModel, Field
 import streamlit as st
+from supabase import create_client, Client
 
 # ==============================================================================
 # CONFIGURAÇÃO GERAL DA PÁGINA STREAMLIT (Mobile & Desktop Responsive)
@@ -304,10 +305,17 @@ def parse_float_br(val: Any) -> float:
 
 
 def get_secret_val(key: str, default: Any = None) -> Any:
-    """Busca chave primeiro em st.secrets, depois em os.environ."""
-    if key in st.secrets:
-        return st.secrets[key]
-    return os.environ.get(key, default)
+    """Busca chave primeiro em st.secrets, depois em os.environ com suporte a maiúsculas/minúsculas."""
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+        if key.lower() in st.secrets:
+            return st.secrets[key.lower()]
+        if key.upper() in st.secrets:
+            return st.secrets[key.upper()]
+    except Exception:
+        pass
+    return os.environ.get(key, os.environ.get(key.upper(), os.environ.get(key.lower(), default)))
 
 
 # ==============================================================================
@@ -616,6 +624,342 @@ def clear_cronograma_in_sheets() -> Tuple[bool, str]:
         return False, f"Erro ao limpar cronograma: {str(e)}"
 
 
+# ==============================================================================
+# SERVIÇOS E CLIENTES SUPABASE (POSTGRESQL & AUTH SAAS)
+# ==============================================================================
+@st.cache_resource
+def get_supabase_client() -> Optional[Client]:
+    """Retorna o cliente Supabase com a chave pública anon para auth e RLS."""
+    url = get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL")
+    key = get_secret_val("supabase_key") or get_secret_val("SUPABASE_KEY")
+    if not url or not key:
+        return None
+    try:
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Erro ao inicializar Supabase: {e}")
+        return None
+
+
+@st.cache_resource
+def get_supabase_admin() -> Optional[Client]:
+    """Retorna o cliente Supabase com a chave de serviço (admin)."""
+    url = get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL")
+    secret_key = get_secret_val("supabase_secret_key") or get_secret_val("SUPABASE_SECRET_KEY")
+    if not url or not secret_key:
+        return None
+    try:
+        return create_client(url, secret_key)
+    except Exception:
+        return None
+
+
+def get_current_user() -> Optional[Dict[str, Any]]:
+    """Retorna o dicionário do usuário logado na sessão atual."""
+    return st.session_state.get("user")
+
+
+def get_current_user_id() -> Optional[str]:
+    """Retorna o UUID do usuário logado ou None se visitante."""
+    u = get_current_user()
+    return u.get("id") if u else None
+
+
+def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
+    """Autentica o atleta por e-mail e senha no Supabase Auth."""
+    sb = get_supabase_client()
+    if not sb:
+        return False, "Cliente Supabase não configurado nos segredos."
+    try:
+        res = sb.auth.sign_in_with_password({"email": email.strip(), "password": password})
+        if res and res.user:
+            st.session_state["user"] = {
+                "id": str(res.user.id),
+                "email": res.user.email,
+            }
+            st.cache_data.clear()
+            return True, "Login realizado com sucesso!"
+        return False, "Credenciais inválidas."
+    except Exception as e:
+        err = str(e)
+        if "Invalid login credentials" in err:
+            return False, "E-mail ou senha incorretos."
+        return False, f"Erro ao autenticar: {err}"
+
+
+def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
+    """Cadastra um novo atleta no Supabase Auth e registra perfil."""
+    sb = get_supabase_client()
+    if not sb:
+        return False, "Cliente Supabase não configurado nos segredos."
+    try:
+        res = sb.auth.sign_up({"email": email.strip(), "password": password})
+        if res and res.user:
+            user_id = str(res.user.id)
+            sb_admin = get_supabase_admin() or sb
+            try:
+                sb_admin.table("profiles").upsert({
+                    "id": user_id,
+                    "email": email.strip(),
+                    "nome": name.strip(),
+                }).execute()
+            except Exception:
+                pass
+            st.session_state["user"] = {
+                "id": user_id,
+                "email": res.user.email,
+                "nome": name.strip(),
+            }
+            st.cache_data.clear()
+            return True, "Conta criada com sucesso! Você já está conectado."
+        return False, "Não foi possível criar a conta."
+    except Exception as e:
+        return False, f"Erro ao cadastrar: {str(e)}"
+
+
+def auth_sign_out():
+    """Encerra a sessão do atleta no Supabase e limpa o estado."""
+    sb = get_supabase_client()
+    if sb:
+        try:
+            sb.auth.sign_out()
+        except Exception:
+            pass
+    if "user" in st.session_state:
+        del st.session_state["user"]
+    st.cache_data.clear()
+
+
+# ==============================================================================
+# OPERAÇÕES DE DADOS NO SUPABASE (SaaS Multi-tenant)
+# ==============================================================================
+def load_workouts_from_supabase(user_id: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega os treinos do atleta logado diretamente do Supabase PostgreSQL."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return None, "Supabase não conectado."
+    try:
+        res = sb.table("workouts").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
+        rows = res.data or []
+        if not rows:
+            return pd.DataFrame(columns=SHEET_COLUMNS), None
+
+        df = pd.DataFrame(rows)
+        mapping = {
+            "data": "Data",
+            "distancia_km": "Distância (km)",
+            "tempo_min": "Tempo (min)",
+            "pace_medio": "Pace Médio",
+            "fc_media": "FC Média (bpm)",
+            "zona_predominante": "Zona Predominante",
+            "rpe": "RPE (1-10)",
+            "notas_atleta": "Notas do Atleta",
+            "parecer_treinador": "Parecer do Treinador",
+            "created_at": "Registrado Em",
+        }
+        df = df.rename(columns=mapping)
+        for c in SHEET_COLUMNS:
+            if c not in df.columns:
+                df[c] = ""
+
+        if "Distância (km)" in df.columns:
+            df["Distância (km)"] = pd.to_numeric(df["Distância (km)"], errors="coerce").fillna(0.0)
+        if "Tempo (min)" in df.columns:
+            df["Tempo (min)"] = pd.to_numeric(df["Tempo (min)"], errors="coerce").fillna(0.0)
+        if "FC Média (bpm)" in df.columns:
+            df["FC Média (bpm)"] = pd.to_numeric(df["FC Média (bpm)"], errors="coerce").fillna(0).astype(int)
+        if "RPE (1-10)" in df.columns:
+            df["RPE (1-10)"] = pd.to_numeric(df["RPE (1-10)"], errors="coerce").fillna(0).astype(int)
+
+        return df, None
+    except Exception as e:
+        return None, f"Erro ao consultar treinos no Supabase: {str(e)}"
+
+
+def append_workout_to_supabase(
+    analysis: TreinoExtracao,
+    rpe: int,
+    user_notes: str,
+    user_id: str
+) -> Tuple[bool, str]:
+    """Salva com segurança uma nova atividade no Supabase vinculada ao user_id."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False, "Supabase não configurado."
+    try:
+        payload = {
+            "user_id": user_id,
+            "data": analysis.data,
+            "distancia_km": float(analysis.distancia_km),
+            "tempo_min": float(analysis.tempo_min),
+            "pace_medio": str(analysis.pace_medio),
+            "fc_media": int(analysis.fc_media),
+            "zona_predominante": str(analysis.zona_predominante),
+            "rpe": int(rpe),
+            "notas_atleta": user_notes.strip(),
+            "parecer_treinador": analysis.parecer_treinador.strip(),
+        }
+        sb.table("workouts").insert(payload).execute()
+        st.cache_data.clear()
+        return True, "Treino registrado com sucesso no Supabase Cloud!"
+    except Exception as e:
+        return False, f"Erro ao gravar no Supabase: {str(e)}"
+
+
+def load_cronograma_from_supabase(user_id: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega o cronograma do atleta logado a partir do Supabase."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return None, "Supabase não conectado."
+    try:
+        res = sb.table("schedules").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
+        rows = res.data or []
+        if not rows:
+            return pd.DataFrame(columns=CRONOGRAMA_COLUMNS), None
+
+        df = pd.DataFrame(rows)
+        mapping = {
+            "id": "ID",
+            "dia_semana": "Dia da Semana",
+            "data_prevista": "Data Prevista",
+            "tipo_treino": "Tipo de Treino",
+            "distancia_km": "Distância (km)",
+            "duracao_min": "Duração (min)",
+            "pace_alvo": "Pace Alvo",
+            "rpe_alvo": "RPE Alvo",
+            "estrutura_treino": "Estrutura do Treino",
+            "status": "Status",
+            "data_conclusao": "Data Conclusão",
+            "created_at": "Criado Em",
+        }
+        df = df.rename(columns=mapping)
+        for c in CRONOGRAMA_COLUMNS:
+            if c not in df.columns:
+                df[c] = ""
+
+        if "Distância (km)" in df.columns:
+            df["Distância (km)"] = pd.to_numeric(df["Distância (km)"], errors="coerce").fillna(0.0)
+        if "Duração (min)" in df.columns:
+            df["Duração (min)"] = pd.to_numeric(df["Duração (min)"], errors="coerce").fillna(0.0)
+        if "RPE Alvo" in df.columns:
+            df["RPE Alvo"] = pd.to_numeric(df["RPE Alvo"], errors="coerce").fillna(0).astype(int)
+
+        return df, None
+    except Exception as e:
+        return None, f"Erro ao carregar Cronograma do Supabase: {str(e)}"
+
+
+def mark_workout_as_completed_supabase(workout_id: str, user_id: str) -> Tuple[bool, str]:
+    """Marca o treino como Concluído no Supabase."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False, "Supabase não configurado."
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sb.table("schedules").update({
+            "status": "Concluído ✅",
+            "data_conclusao": now_str
+        }).eq("id", workout_id).eq("user_id", user_id).execute()
+        st.cache_data.clear()
+        return True, "Treino marcado como Concluído no Supabase!"
+    except Exception as e:
+        return False, f"Erro ao marcar no Supabase: {str(e)}"
+
+
+def save_weekly_plan_to_supabase(plano: PlanoSemanalPrescrito, user_id: str) -> Tuple[bool, str]:
+    """Salva os 7 dias gerados da planilha no Supabase com status 'Pendente'."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False, "Supabase não configurado."
+    try:
+        novas_linhas = []
+        for d in plano.dias:
+            treino_id = f"TR-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+            novas_linhas.append({
+                "id": treino_id,
+                "user_id": user_id,
+                "dia_semana": d.dia_semana,
+                "data_prevista": d.data_prevista,
+                "tipo_treino": d.tipo_treino,
+                "distancia_km": float(d.distancia_km),
+                "duracao_min": float(d.duracao_min),
+                "pace_alvo": str(d.pace_alvo),
+                "rpe_alvo": int(d.rpe_alvo),
+                "estrutura_treino": str(d.estrutura_treino),
+                "status": "Pendente",
+                "data_conclusao": "",
+            })
+        sb.table("schedules").insert(novas_linhas).execute()
+        st.cache_data.clear()
+        return True, f"Plano com {len(novas_linhas)} sessões sincronizado com o Supabase Cloud!"
+    except Exception as e:
+        return False, f"Erro ao salvar no Supabase: {str(e)}"
+
+
+def clear_cronograma_in_supabase(user_id: str) -> Tuple[bool, str]:
+    """Limpa todas as sessões agendadas do atleta no Supabase."""
+    sb = get_supabase_admin() or get_supabase_client()
+    if not sb:
+        return False, "Supabase não configurado."
+    try:
+        sb.table("schedules").delete().eq("user_id", user_id).execute()
+        st.cache_data.clear()
+        return True, "Cronograma limpo com sucesso no Supabase!"
+    except Exception as e:
+        return False, f"Erro ao limpar Supabase: {str(e)}"
+
+
+# ==============================================================================
+# CAMADA DE DADOS UNIFICADA (ROTEAMENTO INTELIGENTE SUPABASE / GOOGLE SHEETS)
+# ==============================================================================
+def load_workouts_data() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega treinos do Supabase se o usuário estiver logado, ou do Google Sheets como fallback."""
+    uid = get_current_user_id()
+    if uid:
+        return load_workouts_from_supabase(uid)
+    return load_workouts_from_sheets()
+
+
+def append_workout_data(analysis: TreinoExtracao, rpe: int, user_notes: str) -> Tuple[bool, str]:
+    """Salva o treino no Supabase (se logado) ou no Google Sheets."""
+    uid = get_current_user_id()
+    if uid:
+        return append_workout_to_supabase(analysis, rpe, user_notes, uid)
+    return append_workout_to_sheets(analysis, rpe, user_notes)
+
+
+def load_cronograma_data() -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Carrega o cronograma do Supabase (se logado) ou do Google Sheets."""
+    uid = get_current_user_id()
+    if uid:
+        return load_cronograma_from_supabase(uid)
+    return load_cronograma_from_sheets()
+
+
+def mark_workout_as_completed_data(workout_id: str) -> Tuple[bool, str]:
+    """Marca treino concluído no Supabase (se logado) ou no Google Sheets."""
+    uid = get_current_user_id()
+    if uid:
+        return mark_workout_as_completed_supabase(workout_id, uid)
+    return mark_workout_as_completed(workout_id)
+
+
+def save_weekly_plan_data(plano: PlanoSemanalPrescrito) -> Tuple[bool, str]:
+    """Salva periodização semanal no Supabase (se logado) ou no Google Sheets."""
+    uid = get_current_user_id()
+    if uid:
+        return save_weekly_plan_to_supabase(plano, uid)
+    return save_weekly_plan_to_sheets(plano)
+
+
+def clear_cronograma_data() -> Tuple[bool, str]:
+    """Limpa cronograma no Supabase (se logado) ou no Google Sheets."""
+    uid = get_current_user_id()
+    if uid:
+        return clear_cronograma_in_supabase(uid)
+    return clear_cronograma_in_sheets()
+
+
 def format_athlete_history_for_prompt(df: Optional[pd.DataFrame]) -> str:
     """Gera um prontuário textual estruturado dos treinos do atleta para alimentar os prompts."""
     if df is None or df.empty:
@@ -701,26 +1045,78 @@ def analyze_workout_image(
 # ==============================================================================
 # CABEÇALHO DA INTERFACE
 # ==============================================================================
-col_title, col_status = st.columns([4, 1])
+col_title, col_status = st.columns([3.2, 1.8])
 with col_title:
     st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="main-subtitle">Consultoria de corrida, análise de prints, cronograma inteligente e check-in com Gemini 2.5 & Google Sheets</div>',
+        '<div class="main-subtitle">Consultoria de corrida e triatlo, análise de prints, cronograma inteligente e check-in com Gemini 2.5 & Supabase Cloud</div>',
         unsafe_allow_html=True,
     )
 
 with col_status:
-    api_ready = bool(get_secret_val("GEMINI_API_KEY"))
-    sheet_ready = bool(get_secret_val("sheet_url")) and ("gcp_service_account" in st.secrets)
-    
-    if api_ready and sheet_ready:
-        st.caption("🟢 **Sistema Conectado**")
+    user = get_current_user()
+    if user:
+        st.markdown(f"👤 **{user.get('email', 'Atleta')}**")
+        st.caption("🟢 **Supabase Cloud (SaaS)**")
+        if st.button("🚪 Sair", key="btn_logout_top", help="Desconectar desta conta", use_container_width=True):
+            auth_sign_out()
+            st.rerun()
     else:
-        st.caption("🟡 **Modo Parcial / Demo**")
+        sb_ready = bool(get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL"))
+        if sb_ready:
+            st.caption("☁️ **Modo Visitante (Planilha)**")
+        if st.button("🔑 Entrar / Criar Conta", type="primary", use_container_width=True, key="btn_open_auth"):
+            modal_auth()
 
 # ==============================================================================
 # MODAIS POPUP (STREAMLIT DIALOGS)
 # ==============================================================================
+@st.dialog("👤 Conta do Atleta (SaaS)", width="small")
+def modal_auth():
+    st.markdown("Acesse sua conta para sincronizar seus treinos e cronogramas na nuvem:")
+    tab_login, tab_register = st.tabs(["🔑 Entrar", "✨ Criar Conta"])
+
+    with tab_login:
+        login_email = st.text_input("Seu E-mail", key="input_login_email")
+        login_pass = st.text_input("Sua Senha", type="password", key="input_login_pass")
+        if st.button("Entrar na Minha Conta", type="primary", use_container_width=True, key="btn_do_login"):
+            if not login_email or not login_pass:
+                st.warning("⚠️ Informe seu e-mail e senha.")
+            else:
+                with st.spinner("Autenticando com Supabase..."):
+                    ok_in, msg_in = auth_sign_in(login_email, login_pass)
+                    if ok_in:
+                        st.success(msg_in)
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        st.error(msg_in)
+
+    with tab_register:
+        reg_nome = st.text_input("Nome Completo", key="input_reg_nome")
+        reg_email = st.text_input("Seu Melhor E-mail", key="input_reg_email")
+        reg_pass = st.text_input("Criar Senha (mínimo 6 dígitos)", type="password", key="input_reg_pass")
+        reg_pass2 = st.text_input("Confirmar Senha", type="password", key="input_reg_pass2")
+
+        if st.button("Criar Conta Gratuita", type="primary", use_container_width=True, key="btn_do_register"):
+            if not reg_email or not reg_pass:
+                st.warning("⚠️ Preencha os campos obrigatórios.")
+            elif len(reg_pass) < 6:
+                st.warning("⚠️ A senha deve conter pelo menos 6 caracteres.")
+            elif reg_pass != reg_pass2:
+                st.error("❌ As senhas digitadas não coincidem.")
+            else:
+                with st.spinner("Criando sua conta no Supabase Cloud..."):
+                    ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass, reg_nome or "Atleta")
+                    if ok_reg:
+                        st.balloons()
+                        st.success(msg_reg)
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(msg_reg)
+
+
 @st.dialog("📸 Registrar Treino com Print (Garmin/Strava)", width="large")
 def modal_registrar_treino_print():
     st.markdown("Envie o print do seu relógio ou aplicativo de corrida para análise imediata com o Coach AI:")
@@ -779,7 +1175,7 @@ def modal_registrar_treino_print():
             if not client:
                 st.error("🔑 Chave de API do Gemini não configurada.")
             else:
-                with st.spinner("🏃 Processando print e salvando dados no Google Sheets..."):
+                with st.spinner("🏃 Processando print e salvando dados..."):
                     try:
                         res = analyze_workout_image(
                             image_bytes=uploaded_file_m.getvalue(),
@@ -788,13 +1184,13 @@ def modal_registrar_treino_print():
                             user_notes=user_notes_m,
                             gemini_client=client,
                         )
-                        salvo, msg_sheets = append_workout_to_sheets(res, rpe_m, user_notes_m)
+                        salvo, msg_sheets = append_workout_data(res, rpe_m, user_notes_m)
                         st.session_state["ultimo_treino"] = res
                         st.session_state["sheets_salvo"] = salvo
                         st.session_state["sheets_msg"] = msg_sheets
                         st.cache_data.clear()
                         st.balloons()
-                        st.success("✅ Atividade analisada com sucesso e sincronizada com a planilha!")
+                        st.success("✅ Atividade analisada com sucesso e sincronizada!")
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
@@ -804,7 +1200,7 @@ def modal_registrar_treino_print():
 @st.dialog("💬 Conversar com o Coach AI", width="large")
 def modal_conversar_coach():
     st.markdown("##### Tire dúvidas rápidas com o Treinador sobre treinos, ritmo e recuperação:")
-    df_ctx, _ = load_workouts_from_sheets()
+    df_ctx, _ = load_workouts_data()
     hist_txt = format_athlete_history_for_prompt(df_ctx)
 
     st.markdown("###### ⚡ Perguntas Rápidas:")
@@ -892,7 +1288,7 @@ tab_painel, tab_planilha, tab_historico, tab_chat, tab_ajuda = st.tabs([
 # ABA 1: MEU PAINEL (HOME / TREINO ATUAL EM DESTAQUE)
 # ------------------------------------------------------------------------------
 with tab_painel:
-    df_crono, erro_crono = load_cronograma_from_sheets()
+    df_crono, erro_crono = load_cronograma_data()
 
     # 1. SPOTLIGHT HERO CARD: TREINO ATUAL / PRÓXIMA SESSÃO
     st.markdown("### 🔥 Treino Atual em Destaque")
@@ -942,8 +1338,8 @@ with tab_painel:
                     key="btn_checkin_hero",
                     help="Terminou a atividade? Clique para registrar a conclusão com data e horário no Google Sheets!",
                 ):
-                    with st.spinner("Atualizando status na planilha Google Sheets..."):
-                        sucesso_ck, msg_ck = mark_workout_as_completed(proximo_id)
+                    with st.spinner("Atualizando status do treino..."):
+                        sucesso_ck, msg_ck = mark_workout_as_completed_data(proximo_id)
                         if sucesso_ck:
                             st.balloons()
                             st.success(f"🎉 Parabéns atleta! {msg_ck}")
@@ -1028,8 +1424,8 @@ with tab_painel:
             with st.popover("🗑️ Limpar Grade", help="Clique para apagar os treinos agendados e começar uma planilha nova."):
                 st.write("Deseja apagar todos os treinos da planilha 'Cronograma'?")
                 if st.button("⚠️ Confirmar e Limpar", type="primary", use_container_width=True, key="btn_confirm_clear_panel"):
-                    with st.spinner("Limpando sessões da planilha..."):
-                        ok_cl, msg_cl = clear_cronograma_in_sheets()
+                    with st.spinner("Limpando sessões..."):
+                        ok_cl, msg_cl = clear_cronograma_data()
                         if ok_cl:
                             st.success(msg_cl)
                             st.rerun()
@@ -1090,7 +1486,7 @@ with tab_painel:
                                     user_notes=user_notes_in,
                                     gemini_client=client,
                                 )
-                                salvo_in, msg_s_in = append_workout_to_sheets(res_in, rpe_in, user_notes_in)
+                                salvo_in, msg_s_in = append_workout_data(res_in, rpe_in, user_notes_in)
                                 st.session_state["ultimo_treino"] = res_in
                                 st.session_state["sheets_salvo"] = salvo_in
                                 st.session_state["sheets_msg"] = msg_s_in
@@ -1110,12 +1506,12 @@ with tab_historico:
     
     col_btn_refresh, _ = st.columns([1.5, 4])
     with col_btn_refresh:
-        btn_refresh = st.button("🔄 Atualizar / Recarregar Planilha", use_container_width=True)
+        btn_refresh = st.button("🔄 Atualizar / Recarregar Dados", use_container_width=True)
         if btn_refresh:
             st.cache_data.clear()
             st.rerun()
 
-    df_treinos, erro_carregamento = load_workouts_from_sheets()
+    df_treinos, erro_carregamento = load_workouts_data()
 
     if erro_carregamento:
         st.info(f"ℹ️ {erro_carregamento}")
@@ -1220,15 +1616,15 @@ with tab_historico:
 # ------------------------------------------------------------------------------
 with tab_chat:
     st.markdown("### 💬 Consultoria Direta com o Treinador")
-    st.write("Converse com o Coach sobre suas sensações, peça análises da sua evolução ou tire dúvidas sobre ritmo, nutrição e descanso. **O Treinador analisa o histórico de treinos da sua planilha em tempo real!**")
+    st.write("Converse com o Coach sobre suas sensações, peça análises da sua evolução ou tire dúvidas sobre ritmo, nutrição e descanso. **O Treinador analisa o histórico de treinos em tempo real!**")
 
-    df_contexto, _ = load_workouts_from_sheets()
+    df_contexto, _ = load_workouts_data()
     historico_texto = format_athlete_history_for_prompt(df_contexto)
 
     if "chat_messages" not in st.session_state:
         msg_inicial = (
             "Fala atleta! 🏃‍♂️ Sou seu treinador de corrida com inteligência artificial. "
-            "Tenho acesso a todo o seu histórico registrado na planilha do Google Sheets. "
+            "Tenho acesso a todo o seu histórico de treinos registrado na nuvem. "
             "Pode me perguntar sobre sua evolução de pace, como foi seu último treino, "
             "se você está pronto para subir de distância ou o que fazer na sessão de amanhã. "
             "Como posso te ajudar hoje?"
@@ -1417,7 +1813,7 @@ with tab_planilha:
             with st.status("📋 Construindo sua periodização personalizada com o Coach AI...", expanded=True) as status_plan:
                 try:
                     status_plan.write("🔍 **Etapa 1/3:** Lendo histórico de treinos e calculando média de volume e paces...")
-                    df_historico_plano, _ = load_workouts_from_sheets()
+                    df_historico_plano, _ = load_workouts_data()
                     historico_resumo = format_athlete_history_for_prompt(df_historico_plano)
 
                     status_plan.write("🧠 **Etapa 2/3:** Gemini 2.5 Flash aplicando fórmulas de periodização e cálculo de zonas...")
@@ -1539,11 +1935,11 @@ Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informa
 
         col_save_crono, col_dl_crono = st.columns([1.5, 1])
         with col_save_crono:
-            if st.button("💾 Sincronizar esta Planilha com o Cronograma do Google Sheets", type="primary", use_container_width=True):
-                with st.spinner("Gravando as 7 sessões no Cronograma do Google Sheets..."):
+            if st.button("💾 Sincronizar esta Planilha com meu Cronograma", type="primary", use_container_width=True):
+                with st.spinner("Gravando as 7 sessões no Cronograma..."):
                     if substituir_existente:
-                        clear_cronograma_in_sheets()
-                    sucesso_sync, msg_sync = save_weekly_plan_to_sheets(plano)
+                        clear_cronograma_data()
+                    sucesso_sync, msg_sync = save_weekly_plan_data(plano)
                     if sucesso_sync:
                         st.balloons()
                         st.success(f"✅ {msg_sync}")
