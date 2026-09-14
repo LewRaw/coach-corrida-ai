@@ -9,6 +9,7 @@ import io
 import json
 import os
 import uuid
+import collections.abc
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any, List
 
@@ -726,37 +727,65 @@ def clear_cronograma_in_sheets() -> Tuple[bool, str]:
 # ==============================================================================
 # SERVIÇOS E CLIENTES SUPABASE (POSTGRESQL & AUTH SAAS)
 # ==============================================================================
+def find_key_recursive(d: Any, target_keys: List[str]) -> Optional[str]:
+    """Busca chaves recursivamente em dicionários e seções aninhadas de st.secrets."""
+    if not isinstance(d, (dict, collections.abc.Mapping)):
+        return None
+    target_lower = [k.lower() for k in target_keys]
+
+    # 1. Checa no nível atual
+    for k, v in d.items():
+        if isinstance(k, str) and k.lower() in target_lower and isinstance(v, (str, int, float)) and str(v).strip():
+            return str(v).strip()
+
+    # 2. Checa recursivamente em sub-dicionários
+    for k, v in d.items():
+        if isinstance(v, (dict, collections.abc.Mapping)):
+            res = find_key_recursive(v, target_keys)
+            if res:
+                return res
+    return None
+
+
 def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """Busca as credenciais do Supabase de forma flexível em st.secrets e os.environ."""
     url, key, secret_key = None, None, None
 
-    # 1. Seção estruturada [supabase] em st.secrets
+    # 1. Busca recursiva em st.secrets (funciona mesmo se colado em [supabase] ou [gcp_service_account])
     try:
-        if "supabase" in st.secrets and isinstance(st.secrets["supabase"], dict):
-            sb_sec = st.secrets["supabase"]
-            url = sb_sec.get("url") or sb_sec.get("supabase_url") or sb_sec.get("URL")
-            key = (
-                sb_sec.get("key")
-                or sb_sec.get("anon_key")
-                or sb_sec.get("publishable_key")
-                or sb_sec.get("public_key")
-                or sb_sec.get("supabase_key")
-                or sb_sec.get("KEY")
-            )
-            secret_key = (
-                sb_sec.get("secret_key")
-                or sb_sec.get("service_role_key")
-                or sb_sec.get("service_key")
-                or sb_sec.get("supabase_secret_key")
-                or sb_sec.get("SECRET_KEY")
-            )
+        url = find_key_recursive(
+            st.secrets,
+            ["supabase_url", "url", "supabase_project_url", "project_url"],
+        )
+        key = find_key_recursive(
+            st.secrets,
+            [
+                "supabase_key",
+                "key",
+                "anon_key",
+                "publishable_key",
+                "public_key",
+                "supabase_anon_key",
+                "supabase_publishable_key",
+            ],
+        )
+        secret_key = find_key_recursive(
+            st.secrets,
+            [
+                "supabase_secret_key",
+                "secret_key",
+                "service_role_key",
+                "service_key",
+                "supabase_service_role_key",
+            ],
+        )
     except Exception:
         pass
 
-    # 2. Chaves top-level em st.secrets ou variáveis de ambiente
+    # 2. Fallbacks em variáveis de ambiente
     if not url:
         for k in ["supabase_url", "SUPABASE_URL", "supabase_project_url", "SUPABASE_PROJECT_URL"]:
-            v = get_secret_val(k)
+            v = os.environ.get(k, os.environ.get(k.upper(), os.environ.get(k.lower())))
             if v:
                 url = str(v).strip()
                 break
@@ -769,10 +798,8 @@ def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[s
             "SUPABASE_ANON_KEY",
             "supabase_publishable_key",
             "SUPABASE_PUBLISHABLE_KEY",
-            "supabase_public_key",
-            "SUPABASE_PUBLIC_KEY",
         ]:
-            v = get_secret_val(k)
+            v = os.environ.get(k, os.environ.get(k.upper(), os.environ.get(k.lower())))
             if v:
                 key = str(v).strip()
                 break
@@ -784,14 +811,13 @@ def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[s
             "supabase_service_role_key",
             "SUPABASE_SERVICE_ROLE_KEY",
             "supabase_service_key",
-            "SUPABASE_SERVICE_KEY",
         ]:
-            v = get_secret_val(k)
+            v = os.environ.get(k, os.environ.get(k.upper(), os.environ.get(k.lower())))
             if v:
                 secret_key = str(v).strip()
                 break
 
-    # 3. Fallbacks automáticos entre chaves
+    # 3. Fallbacks automáticos entre anon key e service role key
     if not key and secret_key:
         key = secret_key
     if not secret_key and key:
@@ -800,27 +826,45 @@ def get_supabase_credentials() -> Tuple[Optional[str], Optional[str], Optional[s
     return url, key, secret_key
 
 
-@st.cache_resource
+_supabase_client_inst: Optional[Client] = None
+_supabase_admin_inst: Optional[Client] = None
+
+
+def reset_supabase_client_cache():
+    """Limpa a instância em memória dos clientes Supabase para permitir reconexão imediata."""
+    global _supabase_client_inst, _supabase_admin_inst
+    _supabase_client_inst = None
+    _supabase_admin_inst = None
+
+
 def get_supabase_client() -> Optional[Client]:
     """Retorna o cliente Supabase para auth e operações de banco."""
+    global _supabase_client_inst
+    if _supabase_client_inst is not None:
+        return _supabase_client_inst
+
     url, key, _ = get_supabase_credentials()
     if not url or not key:
         return None
     try:
-        return create_client(url, key)
+        _supabase_client_inst = create_client(url, key)
+        return _supabase_client_inst
     except Exception as e:
-        st.error(f"Erro ao inicializar Supabase: {e}")
         return None
 
 
-@st.cache_resource
 def get_supabase_admin() -> Optional[Client]:
     """Retorna o cliente Supabase com privilégios de serviço (admin)."""
+    global _supabase_admin_inst
+    if _supabase_admin_inst is not None:
+        return _supabase_admin_inst
+
     url, _, secret_key = get_supabase_credentials()
     if not url or not secret_key:
         return None
     try:
-        return create_client(url, secret_key)
+        _supabase_admin_inst = create_client(url, secret_key)
+        return _supabase_admin_inst
     except Exception:
         return None
 
@@ -1120,20 +1164,19 @@ def render_login_screen():
 
     col_l1, col_center, col_l3 = st.columns([1, 1.8, 1])
     with col_center:
-        if not get_supabase_client():
-            st.error("⚠️ **Supabase não configurado no Streamlit Cloud**")
-            st.markdown(
-                """
-                As credenciais do Supabase ainda não foram adicionadas nos **Secrets** do app no Streamlit Cloud.
-                
-                **Como resolver (leva 30 segundos):**
-                1. No navegador, acesse seu aplicativo em [share.streamlit.io](https://share.streamlit.io)
-                2. No canto inferior direito, clique em **Manage app** ➔ **Settings** ➔ **Secrets**
-                3. Adicione as chaves `supabase_url`, `supabase_key` e `supabase_secret_key` e clique em **Save**.
-                
-                Após salvar, a tela recarregará automaticamente e o cadastro/login funcionará no celular e no computador!
-                """
-            )
+        with st.expander("🔍 Status dos Segredos do Supabase", expanded=not bool(get_supabase_client())):
+            url_f, key_f, sec_f = get_supabase_credentials()
+            st.markdown(f"- **URL Supabase:** {'✅ Configurada' if url_f else '❌ Não detectada'}")
+            st.markdown(f"- **Chave de Acesso:** {'✅ Configurada' if key_f else '❌ Não detectada'}")
+            st.markdown(f"- **Chave de Serviço (Admin):** {'✅ Configurada' if sec_f else '❌ Não detectada'}")
+            
+            if not (url_f and key_f):
+                st.caption(
+                    "⚠️ As chaves precisam ser salvas em `share.streamlit.io` ➔ seu app ➔ **Manage app** ➔ **Settings** ➔ **Secrets**."
+                )
+            if st.button("🔄 Recarregar e Testar Conexão", key="btn_reload_conn", use_container_width=True):
+                reset_supabase_client_cache()
+                st.rerun()
 
         st.markdown(
             """
