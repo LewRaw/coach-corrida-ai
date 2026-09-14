@@ -9,6 +9,7 @@ import io
 import json
 import os
 import uuid
+import html
 import collections.abc
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any, List
@@ -376,6 +377,7 @@ Ao analisar a imagem (print do Garmin Connect, Strava, Polar, Coros ou Apple Fit
    - Diagnóstico do Treino: Análise objetiva da execução em relação ao volume, ritmo/intensidade e modalidade.
    - Intensidade Cardíaca: Avaliação da resposta fisiológica, zonas de esforço e eficiência cardiovascular.
    - Próximo Passo: Orientação prática e prescritiva para a sessão seguinte (ex: descanso, rodagem regenerativa Z1/Z2, soltura em bike/natação ou mobilidade/musculação).
+5. REGRA DE FORMATAÇÃO: NUNCA utilize caracteres '<' ou '>' no parecer técnico ou em qualquer campo descritivo (ex: nunca escreva '<Z2' ou '<5:30'). Em vez disso, use palavras como 'abaixo de', 'até' ou 'menor que'.
 Responda ESTRITAMENTE em conformidade com o esquema JSON solicitado.
 """
 
@@ -402,6 +404,14 @@ def parse_float_br(val: Any) -> float:
         return float(s)
     except ValueError:
         return 0.0
+
+
+def escape_html_text(text: Any) -> str:
+    """Escapa caracteres HTML para evitar que expressões geradas pela IA como '<Z2; 5:30>' quebrem o DOM do React."""
+    if text is None:
+        return ""
+    escaped = html.escape(str(text))
+    return escaped.replace("\n", "<br>")
 
 
 def get_secret_val(key: str, default: Any = None) -> Any:
@@ -1164,19 +1174,20 @@ def render_login_screen():
 
     col_l1, col_center, col_l3 = st.columns([1, 1.8, 1])
     with col_center:
-        with st.expander("🔍 Status dos Segredos do Supabase", expanded=not bool(get_supabase_client())):
-            url_f, key_f, sec_f = get_supabase_credentials()
-            st.markdown(f"- **URL Supabase:** {'✅ Configurada' if url_f else '❌ Não detectada'}")
-            st.markdown(f"- **Chave de Acesso:** {'✅ Configurada' if key_f else '❌ Não detectada'}")
-            st.markdown(f"- **Chave de Serviço (Admin):** {'✅ Configurada' if sec_f else '❌ Não detectada'}")
-            
-            if not (url_f and key_f):
-                st.caption(
-                    "⚠️ As chaves precisam ser salvas em `share.streamlit.io` ➔ seu app ➔ **Manage app** ➔ **Settings** ➔ **Secrets**."
-                )
-            if st.button("🔄 Recarregar e Testar Conexão", key="btn_reload_conn", use_container_width=True):
-                reset_supabase_client_cache()
-                st.rerun()
+        if not bool(get_supabase_client()):
+            with st.expander("🔍 Status da Conexão com o Banco de Dados", expanded=True):
+                url_f, key_f, sec_f = get_supabase_credentials()
+                st.markdown(f"- **URL do Banco:** {'✅ Configurada' if url_f else '❌ Não detectada'}")
+                st.markdown(f"- **Chave Pública:** {'✅ Configurada' if key_f else '❌ Não detectada'}")
+                st.markdown(f"- **Chave de Serviço (Admin):** {'✅ Configurada' if sec_f else '❌ Não detectada'}")
+                
+                if not (url_f and key_f):
+                    st.caption(
+                        "⚠️ As chaves precisam ser salvas em `share.streamlit.io` ➔ seu app ➔ **Manage app** ➔ **Settings** ➔ **Secrets**."
+                    )
+                if st.button("🔄 Recarregar e Testar Conexão", key="btn_reload_conn", use_container_width=True):
+                    reset_supabase_client_cache()
+                    st.rerun()
 
         st.markdown(
             """
@@ -1205,7 +1216,7 @@ def render_login_screen():
                     if not login_email or not login_pass:
                         st.warning("⚠️ Informe seu e-mail e senha cadastrados.")
                     else:
-                        with st.spinner("Autenticando com Supabase..."):
+                        with st.spinner("Autenticando..."):
                             ok_in, msg_in = auth_sign_in(login_email, login_pass, remember=lembrar_login)
                             if ok_in:
                                 st.success("✅ Login realizado com sucesso!")
@@ -1230,7 +1241,7 @@ def render_login_screen():
                     elif reg_pass1 != reg_pass2:
                         st.error("❌ As senhas digitadas não coincidem.")
                     else:
-                        with st.spinner("Criando sua conta no Supabase Cloud..."):
+                        with st.spinner("Criando sua conta na nuvem..."):
                             ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass1, reg_nome or "Atleta", remember=True)
                             if ok_reg:
                                 st.balloons()
@@ -1240,7 +1251,7 @@ def render_login_screen():
                             else:
                                 st.error(f"❌ {msg_reg}")
 
-        st.caption("🔒 Seus treinos ficam armazenados de forma privada no Supabase com isolamento total por atleta (RLS).")
+        st.caption("🔒 Seus treinos ficam armazenados de forma privada e criptografada com isolamento total por atleta.")
 
 
 # ==============================================================================
@@ -1314,16 +1325,16 @@ def append_workout_to_supabase(
         }
         sb.table("workouts").insert(payload).execute()
         st.cache_data.clear()
-        return True, "Treino registrado com sucesso no Supabase Cloud!"
+        return True, "Treino registrado com sucesso na nuvem!"
     except Exception as e:
-        return False, f"Erro ao gravar no Supabase: {str(e)}"
+        return False, f"Erro ao gravar atividade: {str(e)}"
 
 
 def load_cronograma_from_supabase(user_id: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """Carrega o cronograma do atleta logado a partir do Supabase."""
     sb = get_supabase_admin() or get_supabase_client()
     if not sb:
-        return None, "Supabase não conectado."
+        return None, "Serviço de dados não conectado."
     try:
         res = sb.table("schedules").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
         rows = res.data or []
@@ -1359,14 +1370,14 @@ def load_cronograma_from_supabase(user_id: str) -> Tuple[Optional[pd.DataFrame],
 
         return df, None
     except Exception as e:
-        return None, f"Erro ao carregar Cronograma do Supabase: {str(e)}"
+        return None, f"Erro ao carregar Cronograma: {str(e)}"
 
 
 def mark_workout_as_completed_supabase(workout_id: str, user_id: str) -> Tuple[bool, str]:
     """Marca o treino como Concluído no Supabase."""
     sb = get_supabase_admin() or get_supabase_client()
     if not sb:
-        return False, "Supabase não configurado."
+        return False, "Serviço de dados não configurado."
     try:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sb.table("schedules").update({
@@ -1374,16 +1385,16 @@ def mark_workout_as_completed_supabase(workout_id: str, user_id: str) -> Tuple[b
             "data_conclusao": now_str
         }).eq("id", workout_id).eq("user_id", user_id).execute()
         st.cache_data.clear()
-        return True, "Treino marcado como Concluído no Supabase!"
+        return True, "Treino marcado como Concluído com sucesso!"
     except Exception as e:
-        return False, f"Erro ao marcar no Supabase: {str(e)}"
+        return False, f"Erro ao marcar treino como concluído: {str(e)}"
 
 
 def save_weekly_plan_to_supabase(plano: PlanoSemanalPrescrito, user_id: str) -> Tuple[bool, str]:
     """Salva os 7 dias gerados da planilha no Supabase com status 'Pendente'."""
     sb = get_supabase_admin() or get_supabase_client()
     if not sb:
-        return False, "Supabase não configurado."
+        return False, "Serviço de dados não configurado."
     try:
         novas_linhas = []
         for d in plano.dias:
@@ -1404,22 +1415,22 @@ def save_weekly_plan_to_supabase(plano: PlanoSemanalPrescrito, user_id: str) -> 
             })
         sb.table("schedules").insert(novas_linhas).execute()
         st.cache_data.clear()
-        return True, f"Plano com {len(novas_linhas)} sessões sincronizado com o Supabase Cloud!"
+        return True, f"Plano com {len(novas_linhas)} sessões sincronizado com sucesso!"
     except Exception as e:
-        return False, f"Erro ao salvar no Supabase: {str(e)}"
+        return False, f"Erro ao salvar plano: {str(e)}"
 
 
 def clear_cronograma_in_supabase(user_id: str) -> Tuple[bool, str]:
     """Limpa todas as sessões agendadas do atleta no Supabase."""
     sb = get_supabase_admin() or get_supabase_client()
     if not sb:
-        return False, "Supabase não configurado."
+        return False, "Serviço de dados não configurado."
     try:
         sb.table("schedules").delete().eq("user_id", user_id).execute()
         st.cache_data.clear()
-        return True, "Cronograma limpo com sucesso no Supabase!"
+        return True, "Cronograma limpo com sucesso!"
     except Exception as e:
-        return False, f"Erro ao limpar Supabase: {str(e)}"
+        return False, f"Erro ao limpar cronograma: {str(e)}"
 
 
 # ==============================================================================
@@ -1858,10 +1869,11 @@ PERFIL DO ATLETA:
 - Frequência semanal: {dias_str} dias
 - Foco / Meta Principal: {meta_str}
 
-HISTÓRICO REAL DA PLANILHA / SUPABASE:
+HISTÓRICO REAL DO ATLETA:
 {hist_txt}
 
 LEMBRE-SE: Como o atleta pratica {esportes_str}, considere a fadiga cumulativa neuromuscular e o princípio do treinamento cruzado ao formular a recomendação.
+REGRA DE FORMATAÇÃO: NUNCA utilize caracteres '<' ou '>' para comparações, zonas ou ritmos. Use palavras como 'abaixo de', 'até' ou 'menor que'.
 Responda de forma direta, técnica, motivadora e baseada nesses dados reais:
 """
                     resp = client.models.generate_content(
@@ -1873,7 +1885,7 @@ Responda de forma direta, técnica, motivadora e baseada nesses dados reais:
                         f"""
                         <div class="coach-card">
                             <span class="coach-badge">🎯 Resposta do Treinador</span>
-                            <p>{resp.text.replace(chr(10), '<br>')}</p>
+                            <p>{escape_html_text(resp.text)}</p>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -1894,7 +1906,7 @@ col_title, col_status = st.columns([2.8, 2.2])
 with col_title:
     st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="main-subtitle">Treinador inteligente multi-esportes: corrida, triatlo, bike, natação, futebol e mais com Gemini 2.5 & Supabase</div>',
+        '<div class="main-subtitle">Sua consultoria esportiva inteligente multi-esportes: corrida, triatlo, bike, natação, futebol e fortalecimento</div>',
         unsafe_allow_html=True,
     )
 
@@ -1912,7 +1924,7 @@ with col_status:
         partes = esp.split()
         emoji_tag = partes[0]
         nome_curto = partes[1] if len(partes) > 1 and len(partes[1]) <= 10 else ""
-        pills.append(f'<span class="sport-pill">{emoji_tag} {nome_curto}</span>')
+        pills.append(f'<span class="sport-pill">{emoji_tag} {html.escape(nome_curto)}</span>')
     pills_html = " ".join(pills)
     if len(esportes_list) > 3:
         pills_html += f' <span class="sport-pill">+{len(esportes_list) - 3}</span>'
@@ -2041,21 +2053,22 @@ with tab_painel:
 
             tipo_raw = str(proximo['Tipo de Treino']).strip()
             emoji_prefix = "" if any(tipo_raw.startswith(e) for e in ["🏃", "🚴", "🏊", "💤", "⚡", "🏋️", "🏅", "🏆", "🎯", "⚽", "🏀", "🏐", "🌐"]) else "🏃 "
+            proximo_id = str(proximo["ID"]) if "ID" in proximo else (str(proximo["id"]) if "id" in proximo else str(proximo.name))
 
             st.markdown(
                 f"""
                 <div class="next-workout-card">
                     <span class="coach-badge" style="background: rgba(99, 102, 241, 0.35); color: #C7D2FE;">
-                        🔥 PRÓXIMA SESSÃO • {proximo['Dia da Semana']} ({proximo['Data Prevista']})
+                        🔥 PRÓXIMA SESSÃO • {escape_html_text(proximo['Dia da Semana'])} ({escape_html_text(proximo['Data Prevista'])})
                     </span>
-                    <h3>{emoji_prefix}{tipo_raw}</h3>
+                    <h3>{emoji_prefix}{escape_html_text(tipo_raw)}</h3>
                     <p>
-                        <strong>Distância Prevista:</strong> {dist_str} &nbsp;|&nbsp; 
-                        <strong>Duração Estimada:</strong> {dur_str} &nbsp;|&nbsp; 
-                        <strong>Ritmo / Intensidade Alvo:</strong> {proximo['Pace Alvo']} &nbsp;|&nbsp; 
+                        <strong>Distância Prevista:</strong> {escape_html_text(dist_str)} &nbsp;|&nbsp; 
+                        <strong>Duração Estimada:</strong> {escape_html_text(dur_str)} &nbsp;|&nbsp; 
+                        <strong>Ritmo / Intensidade Alvo:</strong> {escape_html_text(proximo['Pace Alvo'])} &nbsp;|&nbsp; 
                         <strong>RPE Alvo:</strong> {proximo['RPE Alvo']}/10
                     </p>
-                    <p><strong>Estrutura da Sessão:</strong><br>{proximo['Estrutura do Treino'].replace(chr(10), '<br>')}</p>
+                    <p><strong>Estrutura da Sessão:</strong><br>{escape_html_text(proximo['Estrutura do Treino'])}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -2068,7 +2081,7 @@ with tab_painel:
                     type="primary",
                     use_container_width=True,
                     key="btn_checkin_hero",
-                    help="Terminou a atividade? Clique para registrar a conclusão com data e horário no Google Sheets!",
+                    help="Terminou a atividade? Clique para registrar a conclusão do seu treino!",
                 ):
                     with st.spinner("Atualizando status do treino..."):
                         sucesso_ck, msg_ck = mark_workout_as_completed_data(proximo_id)
@@ -2084,7 +2097,7 @@ with tab_painel:
                     "📸 Enviar Print deste Treino",
                     use_container_width=True,
                     key="btn_print_hero",
-                    help="Envie o print do Garmin/Strava deste treino para receber análise técnica da IA.",
+                    help="Envie o print do seu relógio ou aplicativo para receber análise técnica do Coach.",
                 ):
                     modal_registrar_treino_print()
         else:
@@ -2099,21 +2112,18 @@ with tab_painel:
         with m_col1:
             st.metric("📏 Distância", f"{res.distancia_km:.2f} km")
         with m_col2:
-            st.metric("⏱️ Pace Médio", f"{res.pace_medio} /km")
+            st.metric("⏱️ Duração", f"{res.tempo_min:.1f} min")
         with m_col3:
-            fc_display = f"{res.fc_media} bpm" if res.fc_media > 0 else "Não detectada"
-            st.metric("❤️ FC Média", fc_display)
+            st.metric("⚡ Pace Médio", f"{res.pace_medio} /km")
         with m_col4:
-            minutos = int(res.tempo_min)
-            segundos = int(round((res.tempo_min - minutos) * 60))
-            st.metric("⏳ Duração", f"{minutos}m {segundos:02d}s")
+            st.metric("❤️ FC Média", f"{res.fc_media} bpm" if res.fc_media > 0 else "--")
 
         st.markdown(
             f"""
             <div class="coach-card">
-                <span class="coach-badge">🎯 {res.zona_predominante} • Sessão de {res.data}</span>
+                <span class="coach-badge">🎯 {escape_html_text(res.zona_predominante)} • Sessão de {escape_html_text(res.data)}</span>
                 <h3>📋 Parecer Técnico de Consultoria</h3>
-                <p>{res.parecer_treinador.replace(chr(10), '<br>')}</p>
+                <p>{escape_html_text(res.parecer_treinador)}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2209,7 +2219,7 @@ with tab_painel:
                 else:
                     client = get_gemini_client()
                     if client:
-                        with st.spinner("🏃 Analisando com Gemini 2.5 Flash..."):
+                        with st.spinner("🏃 Analisando sua atividade com Inteligência Artificial..."):
                             try:
                                 res_in = analyze_workout_image(
                                     image_bytes=up_inline.getvalue(),
@@ -2425,6 +2435,7 @@ DIRETRIZES DA RESPOSTA:
 3. Se o atleta perguntar se está pronto para uma meta, seja honesto com base no volume e evolução observados.
 4. Se perguntar sobre o próximo treino, recomende com base na recuperação e no princípio da supercompensação.
 5. Mantenha tom motivador, profissional e esportivo.
+6. REGRA CRÍTICA DE FORMATAÇÃO: NUNCA utilize caracteres '<' ou '>' para indicar comparações, ritmos ou zonas (ex: nunca escreva '<Z2' ou '<5:30'). Use palavras como 'abaixo de', 'até' ou 'menor que'.
 """
                         gemini_contents = []
                         for m in st.session_state["chat_messages"][-8:]:
@@ -2640,7 +2651,7 @@ with tab_planilha:
             "🚀 Gerar Planilha de Treinos com Coach AI",
             type="primary",
             use_container_width=True,
-            help="O Gemini 2.5 Flash vai analisar seu histórico real da planilha e estruturar os próximos 7 dias sob medida.",
+            help="A Inteligência Artificial vai analisar seu histórico e estruturar os próximos 7 dias sob medida para seus objetivos.",
         )
 
     if btn_gerar_plano:
@@ -2654,7 +2665,7 @@ with tab_planilha:
                     df_historico_plano, _ = load_workouts_data()
                     historico_resumo = format_athlete_history_for_prompt(df_historico_plano)
 
-                    status_plan.write("🧠 **Etapa 2/3:** Gemini 2.5 Flash aplicando fórmulas de periodização e cálculo de zonas...")
+                    status_plan.write("🧠 **Etapa 2/3:** Inteligência Artificial aplicando fórmulas de periodização e cálculo de zonas...")
                     
                     # Cálculo explícito e determinístico das próximas 7 datas futuras (Ano 2026)
                     hoje = datetime.now()
@@ -2759,6 +2770,7 @@ PARÂMETROS DEFINIDOS PELO ATLETA:
 - Restrições / Dores: {obs_lesoes if obs_lesoes.strip() else 'Nenhuma restrição. Atleta 100% saudável.'}
 
 Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informadas acima) em formato JSON de acordo com o esquema solicitado.
+REGRA CRÍTICA DE FORMATAÇÃO: NUNCA utilize caracteres '<' ou '>' para indicar comparações, paces ou zonas (por exemplo, nunca escreva '<Z2' ou '<5:30'). Em vez disso, use palavras como 'abaixo de', 'até' ou 'menor que'.
 """
 
                     resp_plano = client.models.generate_content(
@@ -2785,17 +2797,17 @@ Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informa
     if "plano_estruturado" in st.session_state:
         plano: PlanoSemanalPrescrito = st.session_state["plano_estruturado"]
         st.markdown("---")
-        st.markdown(f"### 🏆 {plano.titulo_ciclo}")
+        st.markdown(f"### 🏆 {escape_html_text(plano.titulo_ciclo)}")
         
         st.markdown(
             f"""
             <div class="plan-card">
                 <h4>🎯 Diagnóstico e Metodologia</h4>
-                <p>{plano.diagnostico_metodologia}</p>
+                <p>{escape_html_text(plano.diagnostico_metodologia)}</p>
                 <h4>⏱️ Paces de Referência</h4>
-                <p>{plano.paces_referencia}</p>
+                <p>{escape_html_text(plano.paces_referencia)}</p>
                 <h4>💡 Orientações Gerais do Treinador</h4>
-                <p>{plano.orientacoes_gerais}</p>
+                <p>{escape_html_text(plano.orientacoes_gerais)}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2823,7 +2835,7 @@ Forneça os 7 dias completos (utilizando estritamente as 7 datas futuras informa
                     st.markdown(f"**RPE Alvo:** `{d.rpe_alvo}/10`")
                 with col_d3:
                     st.markdown(f"**Modalidade:** `{d.modalidade}`")
-                st.markdown(f"**Estrutura da Sessão:**<br>{d.estrutura_treino.replace(chr(10), '<br>')}", unsafe_allow_html=True)
+                st.markdown(f"**Estrutura da Sessão:**<br>{escape_html_text(d.estrutura_treino)}", unsafe_allow_html=True)
 
         substituir_existente = st.checkbox(
             "Substituir cronograma atual (limpar treinos antigos antes de salvar)",
