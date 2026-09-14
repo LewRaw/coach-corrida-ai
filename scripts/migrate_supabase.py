@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   dias_disponiveis integer DEFAULT 4,
   pwa_aviso_dispensado boolean DEFAULT false,
   onboarding_concluido boolean DEFAULT false,
+  auth_token text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

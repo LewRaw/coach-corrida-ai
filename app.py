@@ -837,8 +837,53 @@ def dismiss_pwa_banner():
             st.session_state["user_profile"]["pwa_aviso_dispensado"] = True
 
 
-def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
-    """Autentica o atleta por e-mail e senha no Supabase Auth."""
+def generate_and_save_session_token(user_id: str) -> str:
+    """Gera um token persistente único e salva no Supabase e na URL (PWA / Mobile)."""
+    token = str(uuid.uuid4())
+    sb_admin = get_supabase_admin() or get_supabase_client()
+    if sb_admin:
+        try:
+            sb_admin.table("profiles").update({"auth_token": token}).eq("id", user_id).execute()
+        except Exception:
+            pass
+    try:
+        st.query_params["token"] = token
+    except Exception:
+        pass
+    return token
+
+
+def restore_user_from_token() -> bool:
+    """Restaura a sessão do atleta a partir do token persistente na URL (para uso mobile/PWA)."""
+    try:
+        token = st.query_params.get("token")
+    except Exception:
+        token = None
+    if not token:
+        return False
+    sb_admin = get_supabase_admin() or get_supabase_client()
+    if not sb_admin:
+        return False
+    try:
+        res = sb_admin.table("profiles").select("*").eq("auth_token", str(token).strip()).limit(1).execute()
+        if res and res.data and len(res.data) > 0:
+            user_data = res.data[0]
+            st.session_state["user"] = {
+                "id": str(user_data["id"]),
+                "email": user_data.get("email", ""),
+                "nome": user_data.get("nome", "Atleta"),
+            }
+            st.session_state["user_profile"] = user_data
+            if user_data.get("pwa_aviso_dispensado") is not None:
+                st.session_state["pwa_aviso_dispensado"] = user_data.get("pwa_aviso_dispensado")
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def auth_sign_in(email: str, password: str, remember: bool = True) -> Tuple[bool, str]:
+    """Autentica o atleta por e-mail e senha no Supabase Auth com suporte a token persistente."""
     sb = get_supabase_client()
     if not sb:
         return False, "Cliente Supabase não configurado nos segredos."
@@ -861,6 +906,10 @@ def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
                         st.session_state["pwa_aviso_dispensado"] = prof_res.data.get("pwa_aviso_dispensado")
             except Exception:
                 pass
+
+            if remember:
+                generate_and_save_session_token(uid)
+
             st.cache_data.clear()
             return True, "Login realizado com sucesso!"
         return False, "Credenciais inválidas."
@@ -871,8 +920,8 @@ def auth_sign_in(email: str, password: str) -> Tuple[bool, str]:
         return False, f"Erro ao autenticar: {err}"
 
 
-def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
-    """Cadastra um novo atleta no Supabase Auth e registra perfil."""
+def auth_sign_up(email: str, password: str, name: str, remember: bool = True) -> Tuple[bool, str]:
+    """Cadastra um novo atleta no Supabase Auth e registra perfil inicial."""
     sb = get_supabase_client()
     if not sb:
         return False, "Cliente Supabase não configurado nos segredos."
@@ -881,6 +930,7 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
         if res and res.user:
             user_id = str(res.user.id)
             sb_admin = get_supabase_admin() or sb
+            token = str(uuid.uuid4()) if remember else None
             initial_profile = {
                 "id": user_id,
                 "email": email.strip(),
@@ -892,6 +942,7 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
                 "objetivo_principal": "🏃 Meia Maratona (21.1 km)",
                 "pwa_aviso_dispensado": False,
                 "onboarding_concluido": False,
+                "auth_token": token,
             }
             try:
                 sb_admin.table("profiles").upsert(initial_profile).execute()
@@ -904,6 +955,11 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
             }
             st.session_state["user_profile"] = initial_profile
             st.session_state["show_onboarding"] = True
+            if remember and token:
+                try:
+                    st.query_params["token"] = token
+                except Exception:
+                    pass
             st.cache_data.clear()
             return True, "Conta criada com sucesso! Você já está conectado."
         return False, "Não foi possível criar a conta."
@@ -912,7 +968,15 @@ def auth_sign_up(email: str, password: str, name: str) -> Tuple[bool, str]:
 
 
 def auth_sign_out():
-    """Encerra a sessão do atleta no Supabase e limpa o estado."""
+    """Encerra a sessão do atleta no Supabase e limpa o estado e tokens do aparelho."""
+    uid = get_current_user_id()
+    if uid:
+        sb_admin = get_supabase_admin() or get_supabase_client()
+        if sb_admin:
+            try:
+                sb_admin.table("profiles").update({"auth_token": None}).eq("id", uid).execute()
+            except Exception:
+                pass
     sb = get_supabase_client()
     if sb:
         try:
@@ -926,7 +990,94 @@ def auth_sign_out():
     st.session_state.pop("pwa_aviso_dispensado", None)
     st.session_state.pop("onboarding_shown", None)
     st.session_state.pop("show_onboarding", None)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
     st.cache_data.clear()
+
+
+def render_login_screen():
+    """Renderiza a tela de login/cadastro obrigatório da plataforma SaaS."""
+    st.markdown(
+        """
+        <div style="text-align: center; margin-top: 1.5rem; margin-bottom: 1.8rem;">
+            <div style="font-size: 3.5rem; margin-bottom: 0.4rem;">🏃‍♂️⚡</div>
+            <h1 class="main-title" style="margin-bottom: 0.4rem;">Coach AI Multi-Esportes</h1>
+            <p class="main-subtitle" style="max-width: 580px; margin: 0 auto 1.5rem auto;">
+                Sua consultoria esportiva com IA na nuvem. Periodização inteligente, análise de prints do relógio e prescrição integrada para 
+                <strong>Corrida, Triatlo, Ciclismo, Futebol, Basquete, Vôlei e Musculação</strong>.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_l1, col_center, col_l3 = st.columns([1, 1.8, 1])
+    with col_center:
+        st.markdown(
+            """
+            <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.04) 0%, rgba(99, 102, 241, 0.08) 100%); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 14px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;">
+                <h4 style="margin-top: 0; color: #312E81; display: flex; align-items: center; gap: 8px;">
+                    🔐 Acesso à Conta do Atleta
+                </h4>
+                <p style="font-size: 0.92rem; color: #475569; margin-bottom: 0;">
+                    Faça login ou crie sua conta para sincronizar seus treinos e acessar seu cronograma em qualquer aparelho.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        tab_in, tab_up = st.tabs(["🔑 Entrar na Minha Conta", "✨ Criar Conta Gratuita"])
+
+        with tab_in:
+            with st.form("form_login_main"):
+                login_email = st.text_input("Seu E-mail", placeholder="seu@email.com", key="login_main_email")
+                login_pass = st.text_input("Sua Senha", type="password", placeholder="••••••••", key="login_main_pass")
+                lembrar_login = st.checkbox("Manter conectado neste celular/aparelho", value=True, help="Recomendado: salva o acesso no seu aparelho para abrir direto sem digitar senha.")
+                btn_do_login = st.form_submit_button("🚀 Entrar no Meu Treinador", type="primary", use_container_width=True)
+
+                if btn_do_login:
+                    if not login_email or not login_pass:
+                        st.warning("⚠️ Informe seu e-mail e senha cadastrados.")
+                    else:
+                        with st.spinner("Autenticando com Supabase..."):
+                            ok_in, msg_in = auth_sign_in(login_email, login_pass, remember=lembrar_login)
+                            if ok_in:
+                                st.success("✅ Login realizado com sucesso!")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_in}")
+
+        with tab_up:
+            with st.form("form_register_main"):
+                reg_nome = st.text_input("Seu Nome Completo", placeholder="Ex: Carlos Oliveira", key="reg_main_nome")
+                reg_email = st.text_input("Seu Melhor E-mail", placeholder="seu@email.com", key="reg_main_email")
+                reg_pass1 = st.text_input("Criar Senha (mínimo 6 dígitos)", type="password", placeholder="••••••••", key="reg_main_pass1")
+                reg_pass2 = st.text_input("Confirmar Senha", type="password", placeholder="••••••••", key="reg_main_pass2")
+                btn_do_register = st.form_submit_button("✨ Criar Conta Gratuita", type="primary", use_container_width=True)
+
+                if btn_do_register:
+                    if not reg_email or not reg_pass1:
+                        st.warning("⚠️ Preencha os campos obrigatórios.")
+                    elif len(reg_pass1) < 6:
+                        st.warning("⚠️ A senha deve conter pelo menos 6 caracteres.")
+                    elif reg_pass1 != reg_pass2:
+                        st.error("❌ As senhas digitadas não coincidem.")
+                    else:
+                        with st.spinner("Criando sua conta no Supabase Cloud..."):
+                            ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass1, reg_nome or "Atleta", remember=True)
+                            if ok_reg:
+                                st.balloons()
+                                st.success(msg_reg)
+                                time.sleep(0.8)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_reg}")
+
+        st.caption("🔒 Seus treinos ficam armazenados de forma privada no Supabase com isolamento total por atleta (RLS).")
 
 
 # ==============================================================================
@@ -1242,104 +1393,21 @@ def analyze_workout_image(
 
 
 # ==============================================================================
-# CABEÇALHO DA INTERFACE
+# CONTROLE DE SESSÃO & LOGIN OBRIGATÓRIO (SaaS MULTI-TENANT)
 # ==============================================================================
-col_title, col_status = st.columns([3.0, 2.0])
-with col_title:
-    st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="main-subtitle">Treinador inteligente multi-esportes: corrida, triatlo, bike, natação, futebol e mais com Gemini 2.5 & Supabase</div>',
-        unsafe_allow_html=True,
-    )
+# 1. Tentar restaurar login persistente via token na URL (Mobile / PWA)
+if not get_current_user():
+    restore_user_from_token()
 
-with col_status:
-    user = get_current_user()
-    perf = get_athlete_profile()
-    esportes_list = perf.get("esportes_ativos") or ["🏃 Corrida de Rua & Maratona"]
+# 2. Se ainda não estiver autenticado, exibir tela de Login/Cadastro e parar a execução
+if not get_current_user():
+    render_login_screen()
+    st.stop()
 
-    if user:
-        nome_display = perf.get("nome") or user.get("nome") or user.get("email", "Atleta")
-        st.markdown(f"👤 **{nome_display}**")
-        
-        # Pílulas dos esportes ativos
-        pills = []
-        for esp in esportes_list[:3]:
-            partes = esp.split()
-            emoji_tag = partes[0]
-            nome_curto = partes[1] if len(partes) > 1 and len(partes[1]) <= 10 else ""
-            pills.append(f'<span class="sport-pill">{emoji_tag} {nome_curto}</span>')
-        pills_html = " ".join(pills)
-        if len(esportes_list) > 3:
-            pills_html += f' <span class="sport-pill">+{len(esportes_list) - 3}</span>'
-        st.markdown(pills_html, unsafe_allow_html=True)
-
-        col_h1, col_h2 = st.columns([1.2, 1])
-        with col_h1:
-            if st.button("⚙️ Focos", key="btn_focos_header", use_container_width=True, help="Alterar meus esportes, dias e meta"):
-                modal_meus_esportes()
-        with col_h2:
-            if st.button("🚪 Sair", key="btn_logout_top", help="Desconectar desta conta", use_container_width=True):
-                auth_sign_out()
-                st.rerun()
-    else:
-        sb_ready = bool(get_secret_val("supabase_url") or get_secret_val("SUPABASE_URL"))
-        if sb_ready:
-            st.caption("☁️ **Modo Visitante (Planilha)**")
-        col_b1, col_b2 = st.columns([1.2, 1.2])
-        with col_b1:
-            if st.button("🔑 Entrar", type="primary", use_container_width=True, key="btn_open_auth"):
-                modal_auth()
-        with col_b2:
-            if st.button("⚙️ Focos", use_container_width=True, key="btn_focos_guest", help="Configurar seus esportes e metas"):
-                modal_meus_esportes()
 
 # ==============================================================================
 # MODAIS POPUP (STREAMLIT DIALOGS)
 # ==============================================================================
-@st.dialog("👤 Conta do Atleta (SaaS)", width="small")
-def modal_auth():
-    st.markdown("Acesse sua conta para sincronizar seus treinos e cronogramas na nuvem:")
-    tab_login, tab_register = st.tabs(["🔑 Entrar", "✨ Criar Conta"])
-
-    with tab_login:
-        login_email = st.text_input("Seu E-mail", key="input_login_email")
-        login_pass = st.text_input("Sua Senha", type="password", key="input_login_pass")
-        if st.button("Entrar na Minha Conta", type="primary", use_container_width=True, key="btn_do_login"):
-            if not login_email or not login_pass:
-                st.warning("⚠️ Informe seu e-mail e senha.")
-            else:
-                with st.spinner("Autenticando com Supabase..."):
-                    ok_in, msg_in = auth_sign_in(login_email, login_pass)
-                    if ok_in:
-                        st.success(msg_in)
-                        time.sleep(0.5)
-                        st.rerun()
-                    else:
-                        st.error(msg_in)
-
-    with tab_register:
-        reg_nome = st.text_input("Nome Completo", key="input_reg_nome")
-        reg_email = st.text_input("Seu Melhor E-mail", key="input_reg_email")
-        reg_pass = st.text_input("Criar Senha (mínimo 6 dígitos)", type="password", key="input_reg_pass")
-        reg_pass2 = st.text_input("Confirmar Senha", type="password", key="input_reg_pass2")
-
-        if st.button("Criar Conta Gratuita", type="primary", use_container_width=True, key="btn_do_register"):
-            if not reg_email or not reg_pass:
-                st.warning("⚠️ Preencha os campos obrigatórios.")
-            elif len(reg_pass) < 6:
-                st.warning("⚠️ A senha deve conter pelo menos 6 caracteres.")
-            elif reg_pass != reg_pass2:
-                st.error("❌ As senhas digitadas não coincidem.")
-            else:
-                with st.spinner("Criando sua conta no Supabase Cloud..."):
-                    ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass, reg_nome or "Atleta")
-                    if ok_reg:
-                        st.balloons()
-                        st.success(msg_reg)
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error(msg_reg)
 
 
 @st.dialog("🎯 Boas-vindas ao Coach AI: O Porquê & Seus Esportes", width="large")
@@ -1654,6 +1722,47 @@ Responda de forma direta, técnica, motivadora e baseada nesses dados reais:
                     st.error(f"Erro: {str(e)}")
 
     st.caption("💡 *Dica:* Para ter conversas longas e completas com histórico, acesse a aba **'💬 Coach AI'**!")
+
+
+# ==============================================================================
+# CABEÇALHO DA INTERFACE (USUÁRIO AUTENTICADO)
+# ==============================================================================
+col_title, col_status = st.columns([2.8, 2.2])
+with col_title:
+    st.markdown('<div class="main-title">🏃 Coach de Corrida AI</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="main-subtitle">Treinador inteligente multi-esportes: corrida, triatlo, bike, natação, futebol e mais com Gemini 2.5 & Supabase</div>',
+        unsafe_allow_html=True,
+    )
+
+with col_status:
+    user = get_current_user()
+    perf = get_athlete_profile()
+    esportes_list = perf.get("esportes_ativos") or ["🏃 Corrida de Rua & Maratona"]
+    nome_display = perf.get("nome") or (user.get("nome") if user else None) or (user.get("email") if user else "Atleta")
+
+    st.markdown(f"👤 **{nome_display}**")
+    
+    # Pílulas dos esportes ativos
+    pills = []
+    for esp in esportes_list[:3]:
+        partes = esp.split()
+        emoji_tag = partes[0]
+        nome_curto = partes[1] if len(partes) > 1 and len(partes[1]) <= 10 else ""
+        pills.append(f'<span class="sport-pill">{emoji_tag} {nome_curto}</span>')
+    pills_html = " ".join(pills)
+    if len(esportes_list) > 3:
+        pills_html += f' <span class="sport-pill">+{len(esportes_list) - 3}</span>'
+    st.markdown(pills_html, unsafe_allow_html=True)
+
+    col_h1, col_h2 = st.columns([1.2, 1])
+    with col_h1:
+        if st.button("⚙️ Focos", key="btn_focos_header", use_container_width=True, help="Alterar meus esportes, dias e meta"):
+            modal_meus_esportes()
+    with col_h2:
+        if st.button("🚪 Sair", key="btn_logout_top", help="Desconectar desta conta e limpar acesso do aparelho", use_container_width=True):
+            auth_sign_out()
+            st.rerun()
 
 
 # ==============================================================================
