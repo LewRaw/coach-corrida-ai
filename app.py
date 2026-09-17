@@ -13,6 +13,40 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# 1.1 REDIRECIONAMENTO AUTOMÁTICO PARA O NOVO APP VERCEL
+try:
+    from urllib.parse import urlencode
+    query_dict = dict(st.query_params)
+    target_url = "https://coach-corrida-ai.vercel.app/"
+    if query_dict:
+        target_url = f"https://coach-corrida-ai.vercel.app/?{urlencode(query_dict)}"
+except Exception:
+    target_url = "https://coach-corrida-ai.vercel.app/"
+
+if st.query_params.get("legacy") != "true":
+    st.markdown(
+        f"""
+        <meta http-equiv="refresh" content="0; url={target_url}">
+        <script>
+            window.location.replace("{target_url}");
+        </script>
+        <div style="max-width: 480px; margin: 60px auto; padding: 32px; background: #141414; border: 1px solid #262626; border-radius: 24px; text-align: center; color: white; font-family: sans-serif;">
+            <div style="width: 56px; height: 56px; background: #11C76F; border-radius: 18px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 26px;">
+                🏃
+            </div>
+            <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 800;">Coach AI Mudou!</h2>
+            <p style="margin: 0 0 24px; font-size: 13px; color: #8E8E93; line-height: 1.5;">
+                Estamos te redirecionando automaticamente para a nova versão na Vercel...
+            </p>
+            <a href="{target_url}" style="display: block; padding: 14px 20px; background: #11C76F; color: white; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 14px;">
+                Acessar Novo App
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
 # 2. IMPORTAÇÃO DOS MÓDULOS ARQUITETURAIS
 from services.auth_service import (
     restore_user_from_token,
