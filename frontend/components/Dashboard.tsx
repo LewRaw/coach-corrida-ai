@@ -16,6 +16,7 @@ import WeeklyProgress from './WeeklyProgress';
 import WorkoutScheduleList from './WorkoutScheduleList';
 import WorkoutDetailModal from './WorkoutDetailModal';
 import BottomNav from './BottomNav';
+import ChatPopup from './ChatPopup';
 import { Award, Zap, History, Flame, Activity } from 'lucide-react';
 
 export default function Dashboard() {
@@ -145,6 +146,8 @@ export default function Dashboard() {
               schedules={schedules}
               onCompleteWorkout={handleCompleteWorkout}
               onSelectWorkout={(w) => setSelectedWorkout(w)}
+              userId={user?.id || 'demo-athlete-001'}
+              onReload={loadData}
             />
           </>
         )}
@@ -157,6 +160,8 @@ export default function Dashboard() {
               schedules={schedules}
               onCompleteWorkout={handleCompleteWorkout}
               onSelectWorkout={(w) => setSelectedWorkout(w)}
+              userId={user?.id || 'demo-athlete-001'}
+              onReload={loadData}
             />
           </>
         )}
@@ -214,7 +219,11 @@ export default function Dashboard() {
         workout={selectedWorkout}
         onClose={() => setSelectedWorkout(null)}
         onComplete={handleCompleteWorkout}
+        userId={user?.id || 'demo-athlete-001'}
       />
+
+      {/* Floating Chat */}
+      <ChatPopup />
 
       {/* Bottom Navigation */}
       <BottomNav currentTab={currentTab} onTabChange={setCurrentTab} />

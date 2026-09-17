@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Schedule } from '@/lib/types';
 import {
   X,
@@ -11,19 +11,26 @@ import {
   Info,
   CheckCircle2,
   FileText,
+  Upload,
+  Loader2
 } from 'lucide-react';
+import { analyzeWorkoutPrintAction } from '@/app/actions/ai-actions';
 
 interface WorkoutDetailModalProps {
   workout: Schedule | null;
   onClose: () => void;
   onComplete: (id: string) => Promise<void>;
+  userId: string;
 }
 
 export default function WorkoutDetailModal({
   workout,
   onClose,
   onComplete,
+  userId,
 }: WorkoutDetailModalProps) {
+  const [isUploading, setIsUploading] = useState(false);
+
   if (!workout) return null;
 
   const isCompleted = workout.status === 'Concluído';
@@ -31,6 +38,31 @@ export default function WorkoutDetailModal({
   const handleComplete = async () => {
     await onComplete(workout.id);
     onClose();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result?.toString().split(',')[1];
+        if (!base64Data) return;
+
+        const data = await analyzeWorkoutPrintAction(userId, base64Data, file.type);
+        alert(`Dados extraídos pela IA!\nDistância: ${data.distancia_km}km\nTempo: ${data.tempo_min}min\nPace: ${data.pace_medio}\n\nConcluindo treino...`);
+        // Aqui poderíamos salvar os dados no Supabase na tabela 'workouts'. 
+        // Para simplificar, vamos apenas marcar o schedule como concluído e mostrar o alert.
+        await handleComplete();
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      alert('Erro ao analisar o print com a IA.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -136,21 +168,41 @@ export default function WorkoutDetailModal({
         )}
 
         {/* Footer Actions */}
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
           {!isCompleted && (
-            <button
-              type="button"
-              onClick={handleComplete}
-              className="flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-gradient-to-r from-brand-emerald to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              Concluir Este Treino
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleComplete}
+                className="w-full sm:flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-gradient-to-r from-brand-emerald to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Concluir Manualmente
+              </button>
+              
+              <div className="w-full sm:flex-1 relative">
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  disabled={isUploading}
+                />
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  className="w-full min-h-[48px] py-3 px-4 rounded-xl bg-surface-card hover:bg-surface-card-hover border border-surface-border text-primary-400 font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                  {isUploading ? 'Lendo...' : 'Auto (Subir Print)'}
+                </button>
+              </div>
+            </>
           )}
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-3 rounded-xl bg-surface-card hover:bg-surface-card-hover border border-surface-border text-slate-300 text-sm font-semibold transition-colors min-h-[48px]"
+            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-surface hover:bg-surface-card-hover border border-surface-border text-slate-300 text-sm font-semibold transition-colors min-h-[48px]"
           >
             Fechar
           </button>

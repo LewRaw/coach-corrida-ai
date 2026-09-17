@@ -10,21 +10,29 @@ import {
   Calendar,
   ChevronRight,
   Filter,
+  Wand2,
+  Loader2
 } from 'lucide-react';
+import { generateWeeklyPlanAction } from '@/app/actions/ai-actions';
 
 interface WorkoutScheduleListProps {
   schedules: Schedule[];
   onCompleteWorkout: (scheduleId: string) => Promise<void>;
   onSelectWorkout: (workout: Schedule) => void;
+  userId: string;
+  onReload: () => void;
 }
 
 export default function WorkoutScheduleList({
   schedules,
   onCompleteWorkout,
   onSelectWorkout,
+  userId,
+  onReload
 }: WorkoutScheduleListProps) {
   const [filter, setFilter] = useState<'Todos' | 'Pendentes' | 'Concluídos'>('Todos');
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const filteredSchedules = schedules.filter((s) => {
     if (filter === 'Pendentes') return s.status === 'Pendente';
@@ -43,8 +51,30 @@ export default function WorkoutScheduleList({
     }
   };
 
+  const handleGenerateAI = async () => {
+    try {
+      setIsGenerating(true);
+      await generateWeeklyPlanAction(userId, 'Corrida de Rua', 4); // Default configs, can be enhanced
+      onReload();
+    } catch (error) {
+      alert('Erro ao gerar plano. Tente novamente.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <section className="space-y-3">
+      {/* Generate AI Button */}
+      <button
+        onClick={handleGenerateAI}
+        disabled={isGenerating}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 rounded-xl font-bold text-sm text-white shadow-lg transition-all disabled:opacity-50"
+      >
+        {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+        {isGenerating ? 'Montando planilhas...' : '✨ Gerar Treinos com IA'}
+      </button>
+
       {/* Header & Filter Chips */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
