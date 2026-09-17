@@ -40,26 +40,64 @@ export default function WorkoutDetailModal({
     onClose();
   };
 
+  const compressImage = (file: File): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1000;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            const raw = (reader.result as string).split(',')[1];
+            resolve({ base64: raw, mimeType: file.type });
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          const base64 = dataUrl.split(',')[1];
+          resolve({ base64, mimeType: 'image/jpeg' });
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       setIsUploading(true);
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = reader.result?.toString().split(',')[1];
-        if (!base64Data) return;
-
-        const data = await analyzeWorkoutPrintAction(userId, base64Data, file.type);
-        alert(`Dados extraídos pela IA!\nDistância: ${data.distancia_km}km\nTempo: ${data.tempo_min}min\nPace: ${data.pace_medio}\n\nConcluindo treino...`);
-        // Aqui poderíamos salvar os dados no Supabase na tabela 'workouts'. 
-        // Para simplificar, vamos apenas marcar o schedule como concluído e mostrar o alert.
+      const { base64, mimeType } = await compressImage(file);
+      const res = await analyzeWorkoutPrintAction(userId || 'demo-athlete-001', base64, mimeType);
+      
+      if (res.success && res.data) {
+        const data = res.data;
+        alert(`✨ Dados extraídos pela IA!\nDistância: ${data.distancia_km || 0}km\nTempo: ${data.tempo_min || 0}min\nPace Médio: ${data.pace_medio || 'N/A'}\nFC: ${data.fc_media || 'N/A'} bpm\n\nConcluindo treino...`);
         await handleComplete();
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      alert('Erro ao analisar o print com a IA.');
+      } else {
+        alert(`Não foi possível analisar o print: ${res.error || 'Tente novamente.'}`);
+      }
+    } catch (error: any) {
+      alert('Erro ao processar imagem.');
     } finally {
       setIsUploading(false);
     }

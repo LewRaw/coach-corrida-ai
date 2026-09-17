@@ -30,7 +30,7 @@ export default function ChatPopup() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !profile) return;
+    if (!input.trim()) return;
 
     const userMessage = input.trim();
     setInput('');
@@ -39,10 +39,15 @@ export default function ChatPopup() {
     setIsLoading(true);
 
     try {
-      const reply = await chatWithCoach(profile.id, newMessages);
-      setMessages([...newMessages, { role: 'model', content: reply }]);
-    } catch (error) {
-      setMessages([...newMessages, { role: 'model', content: 'Desculpe, tive um problema para processar sua mensagem.' }]);
+      const athleteId = profile?.id || 'demo-athlete-001';
+      const res = await chatWithCoach(athleteId, newMessages);
+      if (res.success && res.text) {
+        setMessages([...newMessages, { role: 'model', content: res.text }]);
+      } else {
+        setMessages([...newMessages, { role: 'model', content: res.error || 'Desculpe, não consegui responder agora.' }]);
+      }
+    } catch (error: any) {
+      setMessages([...newMessages, { role: 'model', content: 'Desculpe, tive um problema de conexão com o servidor.' }]);
     } finally {
       setIsLoading(false);
     }

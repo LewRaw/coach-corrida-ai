@@ -54,10 +54,15 @@ export default function WorkoutScheduleList({
   const handleGenerateAI = async () => {
     try {
       setIsGenerating(true);
-      await generateWeeklyPlanAction(userId, 'Corrida de Rua', 4); // Default configs, can be enhanced
-      onReload();
-    } catch (error) {
-      alert('Erro ao gerar plano. Tente novamente.');
+      const res = await generateWeeklyPlanAction(userId || 'demo-athlete-001', 'Corrida de Rua', 4);
+      if (res.success) {
+        alert('Planilha para os próximos 7 dias gerada com sucesso pela IA!');
+        onReload();
+      } else {
+        alert(`Não foi possível gerar os treinos: ${res.error}`);
+      }
+    } catch (error: any) {
+      alert('Erro de conexão ao gerar plano.');
     } finally {
       setIsGenerating(false);
     }
