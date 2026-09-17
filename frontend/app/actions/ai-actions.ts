@@ -1,5 +1,6 @@
 'use server';
 
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getProfile, getWorkouts, supabase } from '@/lib/supabase';
 import { Schedule, Workout } from '@/lib/types';
 
@@ -7,7 +8,6 @@ import { Schedule, Workout } from '@/lib/types';
 function getGenAI() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is not set');
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
   return new GoogleGenerativeAI(apiKey);
 }
 
