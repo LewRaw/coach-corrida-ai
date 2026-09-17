@@ -6,6 +6,7 @@ Coach AI
 from typing import Callable
 import streamlit as st
 from services.auth_service import get_current_user, get_athlete_profile, auth_sign_out
+from components.dialogs import modal_atalho_celular, modal_alterar_senha
 
 
 def render_header(on_edit_profile: Callable[[], None]):
@@ -33,6 +34,12 @@ def render_header(on_edit_profile: Callable[[], None]):
 
             if st.button("Ajustar Objetivos", icon=":material/tune:", use_container_width=True):
                 on_edit_profile()
+
+            if st.button("Atalho no Celular", icon=":material/smartphone:", use_container_width=True):
+                modal_atalho_celular()
+
+            if st.button("Alterar Senha", icon=":material/lock_reset:", use_container_width=True):
+                modal_alterar_senha()
 
             if st.button("Encerrar Sessão", icon=":material/logout:", use_container_width=True):
                 auth_sign_out()

@@ -33,9 +33,14 @@ from views import (
 # 3. RESTAURAÇÃO DE SESSÃO PERSISTENTE (MOBILE / PWA)
 restore_user_from_token()
 
-# 4. CONTROLE DE ACESSO OBRIGATÓRIO (GATE DE AUTENTICAÇÃO)
+# 4. CONTROLE DE ACESSO OBRIGATÓRIO (GATE DE AUTENTICAÇÃO E RECUPERAÇÃO DE SENHA)
+is_recovery_link = (
+    st.query_params.get("recovery") == "true"
+    or st.query_params.get("type") == "recovery"
+    or "code" in st.query_params
+)
 user = get_current_user()
-if not user:
+if not user or is_recovery_link:
     render_login_screen()
     st.stop()
 

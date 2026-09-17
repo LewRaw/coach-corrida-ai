@@ -236,15 +236,26 @@ def dismiss_pwa_banner():
 
 
 def generate_and_save_session_token(user_id: str) -> str:
-    """Gera um token persistente único e salva no Supabase e na URL (PWA / Mobile)."""
-    token = uuid.uuid4().hex
+    """Gera ou recupera o token persistente único e salva no Supabase e na URL (PWA / Mobile)."""
     sb_admin = get_supabase_admin() or get_supabase_client()
+    token = None
     if sb_admin:
         try:
-            sb_admin.table("profiles").update({"auth_token": token}).eq("id", user_id).execute()
+            res = sb_admin.table("profiles").select("auth_token").eq("id", user_id).execute()
+            if res.data and res.data[0].get("auth_token"):
+                token = res.data[0]["auth_token"]
         except Exception:
             pass
 
+    if not token:
+        token = uuid.uuid4().hex
+        if sb_admin:
+            try:
+                sb_admin.table("profiles").update({"auth_token": token}).eq("id", user_id).execute()
+            except Exception:
+                pass
+
+    st.session_state["auth_token"] = token
     try:
         st.query_params["token"] = token
     except Exception:
@@ -252,11 +263,16 @@ def generate_and_save_session_token(user_id: str) -> str:
     return token
 
 
+def get_user_session_token(user_id: str) -> Optional[str]:
+    """Retorna o token de acesso rápido persistente do atleta para atalhos de celular."""
+    tok = st.session_state.get("auth_token")
+    if tok:
+        return tok
+    return generate_and_save_session_token(user_id)
+
+
 def restore_user_from_token() -> bool:
     """Restaura a sessão do atleta se houver um token válido nos parâmetros da URL."""
-    if st.session_state.get("auth_user"):
-        return True
-
     token = None
     try:
         token = st.query_params.get("token")
@@ -264,7 +280,20 @@ def restore_user_from_token() -> bool:
         pass
 
     if not token:
+        user = st.session_state.get("auth_user")
+        if user:
+            saved_token = st.session_state.get("auth_token")
+            if saved_token:
+                try:
+                    st.query_params["token"] = saved_token
+                except Exception:
+                    pass
+            return True
         return False
+
+    if st.session_state.get("auth_user"):
+        st.session_state["auth_token"] = token
+        return True
 
     sb_admin = get_supabase_admin() or get_supabase_client()
     if not sb_admin:
@@ -282,6 +311,11 @@ def restore_user_from_token() -> bool:
             }
             st.session_state["auth_user"] = user_data
             st.session_state["auth_profile"] = profile
+            st.session_state["auth_token"] = token
+            try:
+                st.query_params["token"] = token
+            except Exception:
+                pass
             return True
     except Exception:
         pass
@@ -362,7 +396,10 @@ def auth_sign_up(email: str, password: str, name: str, remember: bool = True) ->
         res = target_client.auth.sign_up({
             "email": email.strip(),
             "password": password,
-            "options": {"data": {"nome": name.strip() or "Atleta"}},
+            "options": {
+                "data": {"nome": name.strip() or "Atleta"},
+                "email_redirect_to": "https://coach-corrida-ai.streamlit.app",
+            },
         })
 
         if res.user:
@@ -401,6 +438,36 @@ def auth_sign_up(email: str, password: str, name: str, remember: bool = True) ->
         if "rate limit" in err_msg.lower():
             return False, "Limite temporário de cadastros atingido. Tente novamente em alguns minutos."
         return False, f"Erro ao criar conta: {err_msg}"
+
+
+def auth_reset_password_for_email(email: str) -> Tuple[bool, str]:
+    """Dispara e-mail de recuperação de senha pelo Supabase Auth com link de redirecionamento."""
+    sb = get_supabase_client()
+    if not sb:
+        return False, "Serviço de autenticação não configurado no servidor."
+    try:
+        sb.auth.reset_password_for_email(
+            email.strip(),
+            options={"redirect_to": "https://coach-corrida-ai.streamlit.app?recovery=true"},
+        )
+        return True, "E-mail de recuperação enviado com sucesso! Verifique sua caixa de entrada e pasta de spam."
+    except Exception as e:
+        err_msg = str(e)
+        if "rate limit" in err_msg.lower():
+            return False, "Limite temporário de solicitações atingido. Aguarde alguns instantes."
+        return False, f"Erro ao solicitar recuperação: {err_msg}"
+
+
+def auth_update_password(new_password: str) -> Tuple[bool, str]:
+    """Atualiza a senha do usuário autenticado no Supabase Auth."""
+    sb = get_supabase_client()
+    if not sb:
+        return False, "Serviço de autenticação não configurado no servidor."
+    try:
+        sb.auth.update_user({"password": new_password})
+        return True, "Senha atualizada com sucesso!"
+    except Exception as e:
+        return False, f"Erro ao atualizar senha: {e}"
 
 
 def auth_sign_out():
@@ -464,65 +531,147 @@ def render_login_screen():
             st.caption("Consultoria esportiva e periodização inteligente personalizada")
             st.divider()
 
-            tab_in, tab_up = st.tabs(["Entrar", "Criar Conta"])
+            # Verifica se o link foi aberto via e-mail de recuperação de senha
+            is_recovery = (
+                st.query_params.get("recovery") == "true"
+                or st.query_params.get("type") == "recovery"
+                or "code" in st.query_params
+            )
+            if "code" in st.query_params and not st.session_state.get("auth_user"):
+                code_val = st.query_params.get("code")
+                sb = get_supabase_client()
+                if sb:
+                    try:
+                        sb.auth.exchange_code_for_session({"auth_code": code_val})
+                    except Exception:
+                        pass
 
-            with tab_in:
-                with st.form("form_login_main"):
-                    login_email = st.text_input("E-mail", placeholder="seu@email.com", key="login_main_email")
-                    login_pass = st.text_input("Senha", type="password", placeholder="••••••••", key="login_main_pass")
-                    lembrar_login = st.checkbox(
-                        "Manter conectado neste aparelho",
-                        value=True,
-                        help="Salva o acesso no aparelho para abrir direto nas próximas vezes.",
-                    )
-                    btn_do_login = st.form_submit_button(
-                        "Entrar",
+            if is_recovery:
+                st.subheader("Redefinir Senha de Acesso")
+                st.caption("Crie uma nova senha segura para sua conta.")
+
+                with st.form("form_recovery_password_main"):
+                    new_rec_pass1 = st.text_input("Nova Senha (mínimo 6 dígitos)", type="password", placeholder="••••••••", key="recov_pass1")
+                    new_rec_pass2 = st.text_input("Confirmar Nova Senha", type="password", placeholder="••••••••", key="recov_pass2")
+                    btn_save_new_pass = st.form_submit_button(
+                        "Atualizar Minha Senha",
                         type="primary",
                         use_container_width=True,
-                        icon=":material/login:",
+                        icon=":material/key:",
                     )
 
-                    if btn_do_login:
-                        if not login_email or not login_pass:
-                            st.warning("Informe seu e-mail e senha cadastrados.")
-                        else:
-                            with st.spinner("Autenticando..."):
-                                ok_in, msg_in = auth_sign_in(login_email, login_pass, remember=lembrar_login)
-                                if ok_in:
-                                    st.success("Login realizado com sucesso!")
-                                    time.sleep(0.4)
-                                    st.rerun()
-                                else:
-                                    st.error(msg_in)
-
-            with tab_up:
-                with st.form("form_register_main"):
-                    reg_nome = st.text_input("Nome Completo", placeholder="Ex: Carlos Oliveira", key="reg_main_nome")
-                    reg_email = st.text_input("E-mail", placeholder="seu@email.com", key="reg_main_email")
-                    reg_pass1 = st.text_input("Senha (mínimo 6 dígitos)", type="password", placeholder="••••••••", key="reg_main_pass1")
-                    reg_pass2 = st.text_input("Confirmar Senha", type="password", placeholder="••••••••", key="reg_main_pass2")
-                    btn_do_register = st.form_submit_button(
-                        "Criar Conta Gratuita",
-                        type="primary",
-                        use_container_width=True,
-                        icon=":material/person_add:",
-                    )
-
-                    if btn_do_register:
-                        if not reg_email or not reg_pass1:
-                            st.warning("Preencha os campos obrigatórios.")
-                        elif len(reg_pass1) < 6:
+                    if btn_save_new_pass:
+                        if not new_rec_pass1 or len(new_rec_pass1) < 6:
                             st.warning("A senha deve conter pelo menos 6 caracteres.")
-                        elif reg_pass1 != reg_pass2:
+                        elif new_rec_pass1 != new_rec_pass2:
                             st.error("As senhas digitadas não coincidem.")
                         else:
-                            with st.spinner("Criando sua conta na nuvem..."):
-                                ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass1, reg_nome or "Atleta", remember=True)
-                                if ok_reg:
-                                    st.success(msg_reg)
-                                    time.sleep(0.5)
+                            with st.spinner("Atualizando sua senha..."):
+                                ok_up, msg_up = auth_update_password(new_rec_pass1)
+                                if ok_up:
+                                    st.success("Senha alterada com sucesso! Você já pode entrar com sua nova senha.")
+                                    try:
+                                        del st.query_params["recovery"]
+                                        if "code" in st.query_params:
+                                            del st.query_params["code"]
+                                    except Exception:
+                                        pass
+                                    time.sleep(1.2)
                                     st.rerun()
                                 else:
-                                    st.error(msg_reg)
+                                    st.error(msg_up)
+
+                if st.button("Voltar ao Login Principal", icon=":material/arrow_back:", use_container_width=True):
+                    try:
+                        del st.query_params["recovery"]
+                        if "code" in st.query_params:
+                            del st.query_params["code"]
+                    except Exception:
+                        pass
+                    st.rerun()
+
+            else:
+                tab_in, tab_up, tab_rec = st.tabs(["Entrar", "Criar Conta", "Recuperar Senha"])
+
+                with tab_in:
+                    with st.form("form_login_main"):
+                        login_email = st.text_input("E-mail", placeholder="seu@email.com", key="login_main_email")
+                        login_pass = st.text_input("Senha", type="password", placeholder="••••••••", key="login_main_pass")
+                        lembrar_login = st.checkbox(
+                            "Manter conectado neste aparelho",
+                            value=True,
+                            help="Salva o acesso no aparelho para abrir direto nas próximas vezes.",
+                        )
+                        btn_do_login = st.form_submit_button(
+                            "Entrar",
+                            type="primary",
+                            use_container_width=True,
+                            icon=":material/login:",
+                        )
+
+                        if btn_do_login:
+                            if not login_email or not login_pass:
+                                st.warning("Informe seu e-mail e senha cadastrados.")
+                            else:
+                                with st.spinner("Autenticando..."):
+                                    ok_in, msg_in = auth_sign_in(login_email, login_pass, remember=lembrar_login)
+                                    if ok_in:
+                                        st.success("Login realizado com sucesso!")
+                                        time.sleep(0.4)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg_in)
+
+                with tab_up:
+                    with st.form("form_register_main"):
+                        reg_nome = st.text_input("Nome Completo", placeholder="Ex: Carlos Oliveira", key="reg_main_nome")
+                        reg_email = st.text_input("E-mail", placeholder="seu@email.com", key="reg_main_email")
+                        reg_pass1 = st.text_input("Senha (mínimo 6 dígitos)", type="password", placeholder="••••••••", key="reg_main_pass1")
+                        reg_pass2 = st.text_input("Confirmar Senha", type="password", placeholder="••••••••", key="reg_main_pass2")
+                        btn_do_register = st.form_submit_button(
+                            "Criar Conta Gratuita",
+                            type="primary",
+                            use_container_width=True,
+                            icon=":material/person_add:",
+                        )
+
+                        if btn_do_register:
+                            if not reg_email or not reg_pass1:
+                                st.warning("Preencha os campos obrigatórios.")
+                            elif len(reg_pass1) < 6:
+                                st.warning("A senha deve conter pelo menos 6 caracteres.")
+                            elif reg_pass1 != reg_pass2:
+                                st.error("As senhas digitadas não coincidem.")
+                            else:
+                                with st.spinner("Criando sua conta na nuvem..."):
+                                    ok_reg, msg_reg = auth_sign_up(reg_email, reg_pass1, reg_nome or "Atleta", remember=True)
+                                    if ok_reg:
+                                        st.success(msg_reg)
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg_reg)
+
+                with tab_rec:
+                    st.markdown("Esqueceu sua senha? Digite seu e-mail cadastrado para enviarmos as instruções de redefinição:")
+                    with st.form("form_request_reset_main"):
+                        rec_email = st.text_input("Seu E-mail Cadastrado", placeholder="seu@email.com", key="rec_main_email")
+                        btn_do_rec = st.form_submit_button(
+                            "Enviar Link de Recuperação",
+                            type="primary",
+                            use_container_width=True,
+                            icon=":material/lock_reset:",
+                        )
+
+                        if btn_do_rec:
+                            if not rec_email or "@" not in rec_email:
+                                st.warning("Informe um endereço de e-mail válido.")
+                            else:
+                                with st.spinner("Enviando e-mail de recuperação..."):
+                                    ok_r, msg_r = auth_reset_password_for_email(rec_email)
+                                    if ok_r:
+                                        st.success(msg_r)
+                                    else:
+                                        st.error(msg_r)
 
             st.caption("Acesso protegido com criptografia e isolamento individual de dados por atleta.")

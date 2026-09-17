@@ -13,29 +13,33 @@ from services.data_service import (
     clear_cronograma_data,
 )
 from components.cards import render_next_workout_card, render_feedback_card
-from components.dialogs import modal_concluir_treino
+from components.dialogs import modal_concluir_treino, modal_atalho_celular
 
 
 def render():
     """Renderiza o Painel do Atleta."""
-    # 1. BANNER PWA MOBILE (Instalação em Tela de Início)
+    # 1. BANNER PWA MOBILE (Instalação em Tela de Início com Login Permanente)
     perf = get_athlete_profile()
     pwa_dispensado = perf.get("pwa_aviso_dispensado", False) or st.session_state.get("pwa_aviso_dispensado", False)
 
     if not pwa_dispensado:
         with st.container(border=True):
-            col_pwa_txt, col_pwa_act = st.columns([3.5, 1.5])
+            col_pwa_txt, col_pwa_act = st.columns([3.2, 1.8])
             with col_pwa_txt:
                 st.markdown("**Adicione o Coach AI à tela de início do seu celular**")
                 st.caption(
-                    "No iPhone (Safari): Toque em Compartilhar ➔ 'Adicionar à Tela de Início'. "
-                    "No Android (Chrome): Menu ➔ 'Instalar aplicativo' ou 'Adicionar à tela inicial'."
+                    "Crie um atalho com login memorizado para abrir direto no seu painel sem pedir senha toda vez."
                 )
             with col_pwa_act:
                 st.write("")
-                if st.button("Entendido", key="btn_dispensar_pwa", use_container_width=True, icon=":material/check:"):
-                    dismiss_pwa_banner()
-                    st.rerun()
+                col_pwa_b1, col_pwa_b2 = st.columns(2)
+                with col_pwa_b1:
+                    if st.button("Gerar Atalho", key="btn_abrir_modal_pwa", use_container_width=True, icon=":material/smartphone:"):
+                        modal_atalho_celular()
+                with col_pwa_b2:
+                    if st.button("Dispensar", key="btn_dispensar_pwa", use_container_width=True, icon=":material/check:"):
+                        dismiss_pwa_banner()
+                        st.rerun()
 
     # 2. CARREGAMENTO DO CRONOGRAMA
     df_crono, erro_crono = load_cronograma_data()

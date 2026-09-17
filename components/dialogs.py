@@ -4,12 +4,15 @@ Onboarding, Ajuste de Focos/Esportes e Conclusão de Treinos (Print, Manual ou P
 """
 
 from typing import Any, Optional
+import time
 import streamlit as st
 from config import ESPORTES_OPCOES, TreinoExtracao
 from services.auth_service import (
     get_current_user_id,
     get_athlete_profile,
     update_user_profile,
+    get_user_session_token,
+    auth_update_password,
 )
 from services.data_service import (
     append_workout_data,
@@ -367,3 +370,57 @@ def modal_concluir_treino(proximo: Any = None):
 def modal_registrar_treino_print():
     """Compatibilidade para upload direto de print sem sessão agendada."""
     modal_concluir_treino(None)
+
+
+@st.dialog("Atalho na Tela de Início do Celular")
+def modal_atalho_celular():
+    """Exibe instruções detalhadas e o link permanente com chave de acesso para o atalho mobile."""
+    uid = get_current_user_id()
+    token = get_user_session_token(uid) if uid else None
+
+    st.markdown("### 📲 Acesso Permanente Sem Senha")
+    st.markdown(
+        "No iOS (iPhone) e Android, os atalhos de tela inicial rodam em um ambiente isolado do navegador. "
+        "Para que o ícone no seu celular **nunca peça login novamente**, adicione o seu link pessoal com chave persistente:"
+    )
+
+    if token:
+        app_url = f"https://coach-corrida-ai.streamlit.app/?token={token}"
+        st.markdown("**Seu link pessoal exclusivo com token de acesso:**")
+        st.code(app_url, language=None)
+
+        st.info(
+            "**Passo a passo no seu celular:**\n\n"
+            "1. **Copie o link acima** e envie para seu WhatsApp ou abra direto no navegador do celular.\n"
+            "2. **No iPhone (Safari):** Abra o link, toque no ícone de **Compartilhar** (quadrado com seta para cima) ➔ **'Adicionar à Tela de Início'**.\n"
+            "3. **No Android (Chrome):** Abra o link, toque no menu **(⋮ três pontos)** ➔ **'Adicionar à tela inicial'** ou **'Instalar aplicativo'**.\n\n"
+            "✅ O atalho criado terá sua chave memorizada permanentemente e entrará direto no seu Painel de Treinos!"
+        )
+    else:
+        st.warning("Não foi possível carregar sua chave de acesso. Verifique sua conexão com o servidor.")
+
+
+@st.dialog("Alterar Senha de Acesso")
+def modal_alterar_senha():
+    """Modal para o atleta logado atualizar sua senha com segurança."""
+    st.markdown("Defina uma nova senha para sua conta:")
+
+    with st.form("form_change_password_dialog"):
+        p1 = st.text_input("Nova Senha (mínimo 6 dígitos)", type="password", placeholder="••••••••", key="dlg_chg_pass1")
+        p2 = st.text_input("Confirmar Nova Senha", type="password", placeholder="••••••••", key="dlg_chg_pass2")
+        btn_salvar = st.form_submit_button("Atualizar Minha Senha", type="primary", use_container_width=True, icon=":material/key:")
+
+        if btn_salvar:
+            if not p1 or len(p1) < 6:
+                st.warning("A nova senha deve ter pelo menos 6 caracteres.")
+            elif p1 != p2:
+                st.error("As senhas digitadas não coincidem.")
+            else:
+                with st.spinner("Atualizando senha no servidor..."):
+                    ok_u, msg_u = auth_update_password(p1)
+                    if ok_u:
+                        st.success("Senha alterada com sucesso!")
+                        time.sleep(1.0)
+                        st.rerun()
+                    else:
+                        st.error(msg_u)
