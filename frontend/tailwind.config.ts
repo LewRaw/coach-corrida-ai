@@ -11,35 +11,39 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Vibrant Emerald & Mint Green palette as the primary athletic focus
+        // Solid PicPay / Fintech Green
         primary: {
-          50: "#ecfdf5",
-          100: "#d1fae5",
-          200: "#a7f3d0",
-          300: "#6ee7b7",
-          400: "#34d399",
-          500: "#10b981", // Main accent green
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
-          950: "#022c22",
+          50: "#e8faf1",
+          100: "#c7f4dc",
+          200: "#95ebbf",
+          300: "#57dc9b",
+          400: "#26c77b",
+          500: "#11C76F", // Main PicPay green (solid, vibrant)
+          600: "#0ea85d",
+          700: "#0e854c",
+          800: "#10693f",
+          900: "#0f5635",
+          950: "#06301d",
         },
-        // Neutral background & surface tokens
-        surface: {
-          light: "#ffffff",
-          dark: "#121815",
-          cardLight: "#f8fafc",
-          cardDark: "#17201c",
-          borderLight: "#e2e8f0",
-          borderDark: "#23312a",
+        picpay: "#11C76F",
+        // Neutral black & gray surfaces (pure black, zero green tint in background)
+        dark: {
+          bg: "#000000",
+          card: "#141414",
+          cardHover: "#1b1b1b",
+          cardSecondary: "#202020",
+          border: "#262626",
+          text: "#FFFFFF",
+          muted: "#8E8E93",
         },
-        brand: {
-          emerald: "#10b981",
-          teal: "#14b8a6",
-          mint: "#34d399",
-          amber: "#f59e0b",
-          rose: "#f43f5e",
+        light: {
+          bg: "#F5F6F8",
+          card: "#FFFFFF",
+          cardHover: "#F0F2F5",
+          cardSecondary: "#E9ECEF",
+          border: "#E5E7EB",
+          text: "#111827",
+          muted: "#6B7280",
         },
       },
       fontFamily: {

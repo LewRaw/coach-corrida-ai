@@ -55,10 +55,10 @@ export default function ChatPopup() {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button (Solid PicPay Green, No Gradient) */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-full shadow-lg shadow-emerald-600/30 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all z-40 ${
+        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-[#11C76F] hover:bg-[#0ea85d] rounded-full shadow-lg flex items-center justify-center text-white active:scale-95 transition-all z-40 ${
           isOpen ? 'hidden' : 'flex'
         }`}
         aria-label="Abrir Chat com Treinador"
@@ -68,17 +68,17 @@ export default function ChatPopup() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96 sm:h-[520px] z-50 flex flex-col bg-white dark:bg-[#141d18] border-t sm:border border-slate-200 dark:border-[#23312a] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96 sm:h-[520px] z-50 flex flex-col bg-white dark:bg-[#141414] border-t sm:border border-slate-200 dark:border-[#262626] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#0e1411] border-b border-slate-200 dark:border-[#23312a]">
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#1c1c1c] border-b border-slate-200 dark:border-[#262626]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20">
+              <div className="w-10 h-10 rounded-2xl bg-[#11C76F] flex items-center justify-center text-white">
                 🤖
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Coach AI</h3>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-[10px] text-[#11C76F] font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#11C76F]" />
                   Online
                 </p>
               </div>
@@ -92,14 +92,14 @@ export default function ChatPopup() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50 dark:bg-[#0b0f0e]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60 dark:bg-[#000000]">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                     m.role === 'user'
-                      ? 'bg-emerald-600 text-white rounded-br-sm shadow-sm'
-                      : 'bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-800 dark:text-slate-200 rounded-bl-sm shadow-sm'
+                      ? 'bg-[#11C76F] text-white rounded-br-sm shadow-xs'
+                      : 'bg-white dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#262626] text-slate-800 dark:text-white rounded-bl-sm shadow-xs'
                   }`}
                 >
                   {m.content}
@@ -108,8 +108,8 @@ export default function ChatPopup() {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] p-3 rounded-2xl text-xs bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-400 rounded-bl-sm flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" /> O treinador está pensando...
+                <div className="max-w-[85%] p-3 rounded-2xl text-xs bg-white dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#262626] text-slate-400 rounded-bl-sm flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#11C76F]" /> O treinador está pensando...
                 </div>
               </div>
             )}
@@ -119,19 +119,19 @@ export default function ChatPopup() {
           {/* Input Form */}
           <form
             onSubmit={handleSend}
-            className="p-3 bg-white dark:bg-[#0e1411] border-t border-slate-200 dark:border-[#23312a] flex items-center gap-2"
+            className="p-3 bg-white dark:bg-[#141414] border-t border-slate-200 dark:border-[#262626] flex items-center gap-2"
           >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Pergunte ao treinador..."
-              className="flex-1 bg-slate-100 dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-full px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+              className="flex-1 bg-slate-100 dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#262626] rounded-full px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#11C76F]"
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+              className="w-10 h-10 rounded-full bg-[#11C76F] text-white flex items-center justify-center hover:bg-[#0ea85d] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
               <Send className="w-4 h-4" />
             </button>

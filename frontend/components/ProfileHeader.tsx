@@ -30,7 +30,8 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
           className="flex items-center gap-3 cursor-pointer select-none flex-1 group"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center font-bold text-lg text-white shadow-sm shadow-emerald-500/20 shrink-0">
+          {/* Solid PicPay Green Avatar */}
+          <div className="w-12 h-12 rounded-2xl bg-[#11C76F] flex items-center justify-center font-bold text-lg text-white shadow-sm shrink-0">
             {athleteName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
@@ -39,15 +40,15 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
                 Olá, {athleteName}
               </h1>
               {isDemoMode && (
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/20">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   Demo
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <p className="text-xs text-slate-500 dark:text-[#8E8E93] flex items-center gap-1">
               <span>Painel do Atleta</span>
               <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 text-emerald-500 ${
+                className={`w-3.5 h-3.5 transition-transform duration-200 text-[#11C76F] ${
                   isExpanded ? 'rotate-180' : ''
                 }`}
               />
@@ -61,7 +62,7 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Mudar para Tema Claro' : 'Mudar para Tema Escuro'}
             aria-label="Alternar tema"
-            className="p-2.5 rounded-2xl bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-600 dark:text-slate-300 hover:text-emerald-500 dark:hover:text-emerald-400 shadow-sm transition-all min-w-[42px] min-h-[42px] flex items-center justify-center"
+            className="p-2.5 rounded-2xl bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] text-slate-600 dark:text-slate-300 hover:text-[#11C76F] shadow-sm transition-all min-w-[42px] min-h-[42px] flex items-center justify-center"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
           </button>
@@ -70,7 +71,7 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
             onClick={() => signOut()}
             title="Sair"
             aria-label="Sair da conta"
-            className="p-2.5 rounded-2xl bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 shadow-sm transition-all min-w-[42px] min-h-[42px] flex items-center justify-center"
+            className="p-2.5 rounded-2xl bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] text-slate-400 hover:text-rose-500 shadow-sm transition-all min-w-[42px] min-h-[42px] flex items-center justify-center"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -79,36 +80,36 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
 
       {/* Badges & Goal Section (Collapsible) */}
       {isExpanded && (
-        <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-2xl p-4 mb-3 shadow-sm animate-in slide-in-from-top-2 fade-in duration-200">
+        <div className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-2xl p-4 mb-3 shadow-sm animate-in slide-in-from-top-2 fade-in duration-150">
           <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
             {sports.map((sport, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#11C76F]/15 text-[#11C76F]"
               >
                 🏃 {sport}
               </span>
             ))}
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-[#1a2520] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#283830]">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-slate-300">
               <Award className="w-3 h-3 text-amber-500" />
               {experienceLevel}
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <Compass className="w-4 h-4 text-emerald-500 shrink-0" />
+            <Compass className="w-4 h-4 text-[#11C76F] shrink-0" />
             <span className="font-semibold text-slate-900 dark:text-white">Objetivo:</span>
-            <span className="truncate text-slate-600 dark:text-slate-300">{primaryGoal}</span>
+            <span className="truncate text-slate-600 dark:text-[#8E8E93]">{primaryGoal}</span>
           </div>
         </div>
       )}
 
-      {/* Quick Stats Grid (Minimalist 4-card layout) */}
+      {/* Quick Stats Grid (Solid Flat PicPay Cards) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+        <div className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 dark:text-[#8E8E93] mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider">Treinos</span>
-            <Activity className="w-3.5 h-3.5 text-emerald-500" />
+            <Activity className="w-3.5 h-3.5 text-[#11C76F]" />
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-white">
             {stats.totalWorkouts}
@@ -116,10 +117,10 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+        <div className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 dark:text-[#8E8E93] mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider">Volume</span>
-            <Zap className="w-3.5 h-3.5 text-teal-500" />
+            <Zap className="w-3.5 h-3.5 text-[#11C76F]" />
           </div>
           <div className="text-xl font-extrabold text-slate-900 dark:text-white">
             {stats.totalDistanceKm.toFixed(1)}
@@ -127,8 +128,8 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+        <div className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 dark:text-[#8E8E93] mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider">Pace Médio</span>
             <Flame className="w-3.5 h-3.5 text-amber-500" />
           </div>
@@ -138,12 +139,12 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+        <div className="bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-2xl p-3 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 dark:text-[#8E8E93] mb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider">Adesão</span>
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+            <TrendingUp className="w-3.5 h-3.5 text-[#11C76F]" />
           </div>
-          <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+          <div className="text-xl font-extrabold text-[#11C76F]">
             {stats.adherencePercent}%
           </div>
         </div>

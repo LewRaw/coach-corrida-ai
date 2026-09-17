@@ -14,7 +14,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Coach AI - Assessoria Esportiva',
   description:
-    'Assessoria esportiva minimalista, periodização de treinos e acompanhamento de corrida de alto rendimento.',
+    'Assessoria esportiva minimalista, periodização de treinos e acompanhamento de alto rendimento.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -32,7 +32,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#10b981',
+  themeColor: '#11C76F',
 };
 
 export default function RootLayout({
@@ -48,7 +48,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className="min-h-screen font-sans antialiased transition-colors duration-200 bg-slate-50 text-slate-800 dark:bg-[#0b0f0e] dark:text-slate-100 selection:bg-primary-500 selection:text-white">
+      <body className="min-h-screen font-sans antialiased transition-colors duration-150 bg-[#F5F6F8] text-[#111827] dark:bg-[#000000] dark:text-[#FFFFFF] selection:bg-[#11C76F] selection:text-white">
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

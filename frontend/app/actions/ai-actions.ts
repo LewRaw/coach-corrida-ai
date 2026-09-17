@@ -78,9 +78,10 @@ DIRETRIZES:
 `;
 
     const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Use gemini-3.6-flash which is active and available in Google AI Studio
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 
-    // Format full dialog like Python version to avoid chat history role alternation crashes
+    // Format full dialog to avoid chat history role alternation crashes
     const dialogLines = messages.slice(-10).map((m) => {
       const speaker = m.role === 'user' ? 'ATLETA' : 'TREINADOR';
       return `${speaker}: ${m.content}`;
@@ -102,23 +103,39 @@ RESPONDA DIRETAMENTE AO ATLETA (como o Treinador):`;
   }
 }
 
-export async function generateWeeklyPlanAction(userId: string, tipoModalidade: string, diasSemana: number) {
-  try {
-    let profile: Profile | null = null;
-    let workouts: Workout[] = [];
+export interface PlanGenerationParams {
+  userId: string;
+  tipoModalidade: string;
+  esportesSelecionados: string[];
+  objetivoSelecionado: string;
+  diasSemana: number;
+  diaLongao: string;
+  cicloHorizonte: string;
+  obsLesoes: string;
+}
 
+export async function generateWeeklyPlanAction(params: PlanGenerationParams) {
+  try {
+    const {
+      userId,
+      tipoModalidade,
+      esportesSelecionados,
+      objetivoSelecionado,
+      diasSemana,
+      diaLongao,
+      cicloHorizonte,
+      obsLesoes,
+    } = params;
+
+    let workouts: Workout[] = [];
     if (userId && !userId.startsWith('demo-')) {
       try {
-        profile = await getProfile(userId);
         workouts = await getWorkouts(userId);
       } catch (err) {
         console.warn('DB fetch in generateWeeklyPlan fallback:', err);
       }
     }
 
-    const esportes = profile?.esportes_ativos || ['Corrida de Rua'];
-    const objetivo = profile?.objetivo_principal || 'Meia Maratona';
-    const diaLongao = 'Sábado';
     const historicoResumo = formatAthleteHistory(workouts);
 
     const hoje = new Date();
@@ -133,34 +150,83 @@ export async function generateWeeklyPlanAction(userId: string, tipoModalidade: s
       calendarioDatasStr += `- Dia ${i} (${nomeD}): ${diaFormatado}\n`;
     }
 
-    const promptPlano = `Você é um Treinador de Elite.
-Gere uma periodização para os próximos 7 dias no formato JSON.
-Foco da semana: ${objetivo}
-Frequência: ${diasSemana} dias ativos. Outros dias: 'Descanso' ou 'Descanso Ativo'.
-Dia Chave: ${diaLongao}
-Modalidades: ${esportes.join(', ')}
+    // Diretrizes metodológicas baseadas exatamente no Streamlit (ai_coach.py)
+    let diretrizesMetodologia = '';
+    if (tipoModalidade.includes('Multi-Esportes')) {
+      diretrizesMetodologia = `
+MISSÃO: TREINADOR MESTRE MULTI-ESPORTES E FISIOLOGIA DO EXERCÍCIO:
+Você é um Treinador de Elite especializado em periodização integrativa para atletas multiesporte.
+Modalidades selecionadas: ${esportesSelecionados.join(', ')}.
+Meta / Foco da Semana: ${objetivoSelecionado}.
+Frequência: ${diasSemana} sessões ativas na semana. Os outros ${7 - diasSemana} dias devem ser 'Descanso' ou 'Descanso Ativo'.
+Dia Chave / Mais Exigente da Semana: ${diaLongao}.
+DIRETRIZES:
+1. Alterne dias de impacto articular (corrida) com dias de baixo/zero impacto (bike, natação, fortalecimento).
+2. Para sessões sem metragem linear (jogos, musculação), informe 'distancia_km' como 0.0.
+`;
+    } else if (tipoModalidade.includes('Coletivos')) {
+      diretrizesMetodologia = `
+MISSÃO: PREPARADOR FÍSICO DE ESPORTES COLETIVOS E RESISTÊNCIA:
+Meta: ${objetivoSelecionado}.
+Dia da Partida Principal: ${diaLongao}.
+Frequência Semanal: ${diasSemana} sessões no total (partida + treinos físicos).
+DIRETRIZES:
+1. Dia do Jogo (${diaLongao}): Intensidade máxima competitiva (RPE 8-9).
+2. Véspera do Jogo: Descanso ou ativação leve.
+3. Dia Seguinte ao Jogo: Recuperação ativa sem impacto (soltura ou caminhada).
+`;
+    } else if (tipoModalidade.includes('Triatlo')) {
+      diretrizesMetodologia = `
+MISSÃO: TREINADOR DE TRIATLO / MULTIESPORTE:
+Foco: ${objetivoSelecionado}.
+Disciplinas: ${esportesSelecionados.join(', ')}.
+Frequência: ${diasSemana} sessões na semana. Os outros ${7 - diasSemana} dias são 'Descanso'.
+Dia Longo: ${diaLongao}.
+Alterne dias de impacto com natação e pedal.
+`;
+    } else {
+      diretrizesMetodologia = `
+MISSÃO: TREINADOR DE CORRIDA DE RUA E MARATONAS:
+Foco: ${objetivoSelecionado}.
+Frequência Semanal: ${diasSemana} dias de corrida.
+Dia do Longão: ${diaLongao}.
+No campo 'tipo_treino', use prescrições técnicas como Rodagem Z2, Intervalado VO2, Tempo Run, ou Descanso.
+`;
+    }
 
-CALENDÁRIO FUTURO OBRIGATÓRIO:
+    const promptPlano = `${diretrizesMetodologia}
+
+CONTEXTO TEMPORAL RIGOROSO:
+- CALENDÁRIO OBRIGATÓRIO PARA AS PRÓXIMAS 7 SESSÕES FUTURAS:
 ${calendarioDatasStr}
 
-HISTÓRICO DO ATLETA:
+DADOS E HISTÓRICO REAL DO ATLETA:
 ${historicoResumo}
 
-Retorne um array JSON com exatamente 7 objetos (um para cada dia), cada um contendo:
+PARÂMETROS DA SEMANA DEFINIDOS PELO ATLETA:
+- Arquitetura: ${tipoModalidade}
+- Modalidades: ${esportesSelecionados.join(', ')}
+- Foco: ${objetivoSelecionado}
+- Frequência: ${diasSemana} dias ativos
+- Treino Chave / Longão: ${diaLongao}
+- Período: ${cicloHorizonte}
+- Restrições / Dores: ${obsLesoes.trim() ? obsLesoes : 'Nenhuma restrição informada.'}
+
+Retorne um JSON de array contendo exatamente 7 objetos (um para cada dia da semana futuro listado acima), com estes campos:
 - "dia_semana": string (ex: "Segunda-feira")
 - "data_prevista": string (formato DD/MM/AAAA)
 - "tipo_treino": string (ex: "Rodagem Z2", "Intervalado 6x800m", "Descanso")
-- "distancia_km": number (ex: 8.0, 0 para descanso)
+- "distancia_km": number (ex: 8.0, preencher 0.0 para descanso ou musculação)
 - "duracao_min": number (ex: 45)
 - "pace_alvo": string (ex: "05:20 a 05:35/km", ou "Descanso")
 - "rpe_alvo": number (1 a 10)
 - "estrutura_treino": string (detalhes de aquecimento, principal e desaquecimento)
 
-NUNCA use caracteres '<' ou '>'.`;
+REGRA CRÍTICA: NUNCA use os caracteres '<' ou '>' para indicar ritmo ou comparações. Use palavras como 'abaixo de' ou 'até'.`;
 
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       generationConfig: { responseMimeType: 'application/json' },
     });
 
@@ -213,7 +279,7 @@ Retorne um JSON puro contendo os seguintes campos:
 
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       generationConfig: { responseMimeType: 'application/json' },
     });
 

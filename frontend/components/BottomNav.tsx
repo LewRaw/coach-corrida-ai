@@ -10,14 +10,14 @@ interface BottomNavProps {
 
 export default function BottomNav({ currentTab, onTabChange }: BottomNavProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/85 dark:bg-[#0b0f0e]/85 backdrop-blur-lg border-t border-slate-200 dark:border-[#1f2d26] pb-safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#000000]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#262626] pb-safe-bottom">
       <div className="max-w-md mx-auto flex items-center justify-around px-3 py-1.5">
         <button
           type="button"
           onClick={() => onTabChange('home')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all min-h-[44px] ${
             currentTab === 'home'
-              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-[1.03]'
+              ? 'text-[#11C76F] font-bold scale-[1.03]'
               : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
           }`}
         >
@@ -30,7 +30,7 @@ export default function BottomNav({ currentTab, onTabChange }: BottomNavProps) {
           onClick={() => onTabChange('schedule')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all min-h-[44px] ${
             currentTab === 'schedule'
-              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-[1.03]'
+              ? 'text-[#11C76F] font-bold scale-[1.03]'
               : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
           }`}
         >
@@ -43,7 +43,7 @@ export default function BottomNav({ currentTab, onTabChange }: BottomNavProps) {
           onClick={() => onTabChange('stats')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all min-h-[44px] ${
             currentTab === 'stats'
-              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-[1.03]'
+              ? 'text-[#11C76F] font-bold scale-[1.03]'
               : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
           }`}
         >
