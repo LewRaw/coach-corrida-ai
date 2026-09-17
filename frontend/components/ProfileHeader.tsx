@@ -26,6 +26,23 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
     ? profile.esportes_ativos
     : ['Corrida de Rua'];
 
+  const formatSportBadge = (sport: string) => {
+    const trimmed = sport.trim();
+    const firstChar = trimmed.codePointAt(0) || 0;
+    const hasEmoji = firstChar > 255;
+    if (hasEmoji) return trimmed;
+
+    const lower = trimmed.toLowerCase();
+    if (lower.includes('ciclismo') || lower.includes('bike')) return `🚴 ${trimmed}`;
+    if (lower.includes('natação') || lower.includes('natacao') || lower.includes('swim')) return `🏊 ${trimmed}`;
+    if (lower.includes('triatlo') || lower.includes('triathlon')) return `🏊🚴🏃 ${trimmed}`;
+    if (lower.includes('futebol') || lower.includes('futsal')) return `⚽ ${trimmed}`;
+    if (lower.includes('basquete')) return `🏀 ${trimmed}`;
+    if (lower.includes('vôlei') || lower.includes('volei')) return `🏐 ${trimmed}`;
+    if (lower.includes('musculação') || lower.includes('musculacao') || lower.includes('força')) return `🏋️ ${trimmed}`;
+    return `🏃 ${trimmed}`;
+  };
+
   return (
     <header className="pt-2 pb-2">
       {/* Top Bar: Athlete Info + Theme Switcher + Logout */}
@@ -91,7 +108,7 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
                 key={idx}
                 className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#11C76F]/15 text-[#11C76F]"
               >
-                🏃 {sport}
+                {formatSportBadge(sport)}
               </span>
             ))}
             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-[#202020] text-slate-700 dark:text-slate-300">

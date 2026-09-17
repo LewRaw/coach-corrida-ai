@@ -17,6 +17,8 @@ import {
   SkipForward,
 } from 'lucide-react';
 import { analyzeWorkoutPrintAction } from '@/app/actions/ai-actions';
+import { recordManualWorkoutServerAction } from '@/app/actions/auth-actions';
+import { useToast } from '@/context/ToastContext';
 
 interface WorkoutDetailModalProps {
   workout: Schedule | null;
@@ -31,8 +33,10 @@ export default function WorkoutDetailModal({
   onComplete,
   userId,
 }: WorkoutDetailModalProps) {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'info' | 'print' | 'manual' | 'skip'>('info');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSavingManual, setIsSavingManual] = useState(false);
 
   // Manual input form state
   const [manualDist, setManualDist] = useState(workout?.distancia_km || 5.0);
@@ -102,13 +106,16 @@ export default function WorkoutDetailModal({
 
       if (res.success && res.data) {
         const data = res.data;
-        alert(`✨ Dados extraídos pela IA!\nDistância: ${data.distancia_km || 0}km\nTempo: ${data.tempo_min || 0}min\nPace Médio: ${data.pace_medio || 'N/A'}\nFC: ${data.fc_media || 'N/A'} bpm\n\nConcluindo treino...`);
+        showToast(
+          `✨ Treino analisado! ${data.distancia_km || 0}km em ${data.tempo_min || 0}min (${data.pace_medio || 'N/A'})`,
+          'success'
+        );
         await handleComplete();
       } else {
-        alert(`Não foi possível analisar o print: ${res.error || 'Tente novamente.'}`);
+        showToast(res.error || 'Não foi possível analisar o print.', 'error');
       }
     } catch (error: any) {
-      alert('Erro ao processar imagem.');
+      showToast('Erro ao processar imagem.', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -116,7 +123,33 @@ export default function WorkoutDetailModal({
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Treino manual gravado com sucesso!\nDistância: ${manualDist}km | Tempo: ${manualDur}min | RPE: ${manualRPE}/10`);
+    setIsSavingManual(true);
+    try {
+      if (userId && userId !== 'demo-athlete-001') {
+        await recordManualWorkoutServerAction(
+          userId,
+          {
+            distancia_km: manualDist,
+            tempo_min: manualDur,
+            pace_medio: manualPace,
+            fc_media: manualFC,
+            rpe: manualRPE,
+            notas_atleta: manualNotes || 'Treino manual registrado no app mobile',
+          },
+          workout.id
+        );
+      }
+      showToast(`Treino de ${manualDist}km registrado com sucesso!`, 'success');
+      await handleComplete();
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao registrar treino manual.', 'error');
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
+
+  const handleSkipWorkout = async () => {
+    showToast('Treino pulado com sucesso.', 'info');
     await handleComplete();
   };
 
@@ -370,10 +403,11 @@ export default function WorkoutDetailModal({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-[#11C76F] hover:bg-[#0ea85d] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5"
+              disabled={isSavingManual}
+              className="w-full py-3 rounded-2xl bg-[#11C76F] hover:bg-[#0ea85d] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Salvar Treino Manual
+              {isSavingManual ? 'Gravando no Banco...' : 'Salvar Treino Manual'}
             </button>
           </form>
         )}
@@ -390,7 +424,7 @@ export default function WorkoutDetailModal({
             </p>
             <button
               type="button"
-              onClick={handleComplete}
+              onClick={handleSkipWorkout}
               className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all"
             >
               Confirmar e Pular Treino

@@ -4,6 +4,11 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, DEMO_PROFILE, getProfile, upsertProfile } from '@/lib/supabase';
 import { Profile } from '@/lib/types';
+import {
+  getProfileByTokenServerAction,
+  getProfileByIdServerAction,
+  updateProfileServerAction,
+} from '@/app/actions/auth-actions';
 
 interface AuthContextType {
   user: User | null;
@@ -37,7 +42,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       try {
-        // Check active session
+        // 1. Check URL query params for ?token=... or stored localStorage token
+        let token: string | null = null;
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          token = params.get('token') || localStorage.getItem('coachai_auth_token');
+        }
+
+        if (token && token.trim()) {
+          const tokenRes = await getProfileByTokenServerAction(token.trim());
+          if (tokenRes.success && tokenRes.profile && isMounted) {
+            const athleteProf = tokenRes.profile;
+            setProfile(athleteProf);
+            setUser({
+              id: athleteProf.id,
+              email: athleteProf.email || '',
+              app_metadata: {},
+              user_metadata: { nome: athleteProf.nome },
+              aud: 'authenticated',
+              created_at: athleteProf.created_at,
+            } as User);
+            setIsDemoMode(false);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('coachai_auth_token', token.trim());
+            }
+            return;
+          }
+        }
+
+        // 2. Check active Supabase session
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.warn('Get session warning:', error.message);
@@ -46,21 +79,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data?.session && isMounted) {
           setSession(data.session);
           setUser(data.session.user);
-          const prof = await getProfile(data.session.user.id);
+          const profRes = await getProfileByIdServerAction(data.session.user.id);
           if (isMounted) {
-            setProfile(
-              prof || {
+            if (profRes.success && profRes.profile) {
+              setProfile(profRes.profile);
+              if (profRes.profile.auth_token && typeof window !== 'undefined') {
+                localStorage.setItem('coachai_auth_token', profRes.profile.auth_token);
+              }
+            } else {
+              setProfile({
                 id: data.session.user.id,
                 email: data.session.user.email || '',
                 nome: data.session.user.user_metadata?.nome || 'Atleta',
                 modalidade_preferida: 'Corrida',
                 objetivo_principal: 'Meia Maratona (21.1 km)',
-                esportes_ativos: ['Corrida'],
+                esportes_ativos: ['Corrida de Rua'],
                 nivel_experiencia: 'Intermediário',
                 dias_disponiveis: 4,
                 onboarding_concluido: true,
-              }
-            );
+              });
+            }
           }
         }
       } catch (err) {
@@ -84,26 +122,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(currentSession);
         setUser(currentSession.user);
         setIsDemoMode(false);
-        const prof = await getProfile(currentSession.user.id);
+        const profRes = await getProfileByIdServerAction(currentSession.user.id);
         if (isMounted) {
-          setProfile(
-            prof || {
+          if (profRes.success && profRes.profile) {
+            setProfile(profRes.profile);
+            if (profRes.profile.auth_token && typeof window !== 'undefined') {
+              localStorage.setItem('coachai_auth_token', profRes.profile.auth_token);
+            }
+          } else {
+            setProfile({
               id: currentSession.user.id,
               email: currentSession.user.email || '',
               nome: currentSession.user.user_metadata?.nome || 'Atleta',
               modalidade_preferida: 'Corrida',
               objetivo_principal: 'Meia Maratona (21.1 km)',
-              esportes_ativos: ['Corrida'],
+              esportes_ativos: ['Corrida de Rua'],
               nivel_experiencia: 'Intermediário',
               dias_disponiveis: 4,
               onboarding_concluido: true,
-            }
-          );
+            });
+          }
         }
       } else if (!isDemoMode) {
-        setSession(null);
-        setUser(null);
-        setProfile(null);
+        // If not using URL token, clear session
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('coachai_auth_token') : null;
+        if (!storedToken) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
       }
       setLoading(false);
     });
@@ -135,20 +182,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user);
         setSession(data.session);
         setIsDemoMode(false);
-        const prof = await getProfile(data.user.id);
-        setProfile(
-          prof || {
-            id: data.user.id,
-            email: data.user.email || email,
-            nome: data.user.user_metadata?.nome || 'Atleta',
-            modalidade_preferida: 'Corrida',
-            objetivo_principal: 'Meia Maratona (21.1 km)',
-            esportes_ativos: ['Corrida'],
-            nivel_experiencia: 'Intermediário',
-            dias_disponiveis: 4,
-            onboarding_concluido: true,
-          }
-        );
+        const profRes = await getProfileByIdServerAction(data.user.id);
+        const loadedProf: Profile =
+          profRes.success && profRes.profile
+            ? profRes.profile
+            : {
+                id: data.user.id,
+                email: data.user.email || email,
+                nome: data.user.user_metadata?.nome || 'Atleta',
+                modalidade_preferida: 'Corrida',
+                objetivo_principal: 'Meia Maratona (21.1 km)',
+                esportes_ativos: ['Corrida de Rua'],
+                nivel_experiencia: 'Intermediário',
+                dias_disponiveis: 4,
+                onboarding_concluido: true,
+              };
+        setProfile(loadedProf);
+        if (loadedProf.auth_token && typeof window !== 'undefined') {
+          localStorage.setItem('coachai_auth_token', loadedProf.auth_token);
+        }
       }
 
       return { success: true };
@@ -187,15 +239,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email,
           modalidade_preferida: 'Corrida',
           objetivo_principal: 'Meia Maratona (21.1 km)',
-          esportes_ativos: ['Corrida'],
+          esportes_ativos: ['Corrida de Rua'],
           nivel_experiencia: 'Intermediário',
           dias_disponiveis: 4,
           onboarding_concluido: true,
           created_at: new Date().toISOString(),
         };
 
-        // Provision profile into public.profiles
-        await upsertProfile(initialProfile);
+        // Provision profile into public.profiles via server action
+        await updateProfileServerAction(data.user.id, initialProfile);
 
         setUser(data.user);
         setSession(data.session);
@@ -218,6 +270,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('Sign out warning:', err);
     } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('coachai_auth_token');
+        if (window.location.search.includes('token=')) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -234,7 +292,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true;
     }
 
-    return await upsertProfile(newProfile);
+    try {
+      const res = await updateProfileServerAction(profile.id, updated);
+      if (res.success && res.profile) {
+        setProfile(res.profile);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Exception during updateProfileData:', err);
+      return false;
+    }
   };
 
   const setDemoMode = (enabled: boolean) => {

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Lock, Save, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/context/ToastContext';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface ChangePasswordModalProps {
 }
 
 export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProps) {
+  const { showToast } = useToast();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
       if (updateError) {
         setError(updateError.message || 'Erro ao alterar senha.');
       } else {
-        alert('Senha alterada com sucesso!');
+        showToast('Senha alterada com sucesso!', 'success');
         onClose();
       }
     } catch (err: any) {

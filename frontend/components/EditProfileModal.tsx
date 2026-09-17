@@ -1,30 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Save, Sliders, Target, Award, Calendar, Sparkles } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const TODAS_MODALIDADES = [
-  'Corrida de Rua',
-  'Ciclismo / Bike',
-  'Natação',
-  'Futebol (Society / Campo / Futsal)',
-  'Basquete (Quadra / Meia Quadra)',
-  'Vôlei (Quadra / Areia / Futevôlei)',
-  'Musculação / Fortalecimento',
-  'Crossfit / Funcional',
-  'Triatlo (Swim, Bike & Run)',
-  'Outro Esporte',
+interface ModalidadeItem {
+  id: string;
+  label: string;
+  emoji: string;
+  keywords: string[];
+}
+
+const MODALIDADES_DISPONIVEIS: ModalidadeItem[] = [
+  { id: 'corrida', label: 'Corrida de Rua', emoji: '🏃', keywords: ['corrida', 'maratona', 'running'] },
+  { id: 'ciclismo', label: 'Ciclismo / Bike', emoji: '🚴', keywords: ['ciclismo', 'bike', 'bicicleta', 'cycling'] },
+  { id: 'natacao', label: 'Natação', emoji: '🏊', keywords: ['natação', 'natacao', 'swimming', 'swim'] },
+  { id: 'triatlo', label: 'Especialista em Triatlo', emoji: '🏊🚴🏃', keywords: ['triatlo', 'triathlon'] },
+  { id: 'futebol', label: 'Futebol (Society / Futsal)', emoji: '⚽', keywords: ['futebol', 'futsal', 'society'] },
+  { id: 'basquete', label: 'Basquete', emoji: '🏀', keywords: ['basquete', 'basketball'] },
+  { id: 'volei', label: 'Vôlei', emoji: '🏐', keywords: ['vôlei', 'volei', 'futevôlei'] },
+  { id: 'musculacao', label: 'Musculação / Fortalecimento', emoji: '🏋️', keywords: ['musculação', 'musculacao', 'fortalecimento', 'força'] },
 ];
 
 const NIVEIS_EXPERIENCIA = ['Iniciante', 'Intermediário', 'Avançado', 'Competitivo'];
 
-const OBJETIVOS_LIST = [
+const OBJETIVOS_PADRAO = [
   'Construção de Base Aeróbica (Zona 2)',
   'Primeiros 5 km ou 10 km',
   'Estreia em Meia Maratona (21.1 km)',
@@ -37,23 +43,58 @@ const OBJETIVOS_LIST = [
 
 export default function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
   const { profile, updateProfile } = useAuth();
+  const { showToast } = useToast();
 
-  const [esportes, setEsportes] = useState<string[]>(
-    profile?.esportes_ativos?.length ? profile.esportes_ativos : ['Corrida de Rua']
-  );
-  const [nivel, setNivel] = useState(profile?.nivel_experiencia || 'Intermediário');
-  const [dias, setDias] = useState(profile?.dias_disponiveis || 4);
-  const [meta, setMeta] = useState(profile?.objetivo_principal || 'Construção de Base Aeróbica (Zona 2)');
+  // Helper to check if a modalidade matches user profile strings
+  const isSportMatching = (item: ModalidadeItem, userSports: string[]): boolean => {
+    return userSports.some((us) => {
+      const lowerUS = us.toLowerCase();
+      if (lowerUS.includes(item.label.toLowerCase())) return true;
+      return item.keywords.some((kw) => lowerUS.includes(kw));
+    });
+  };
+
+  // State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [nivel, setNivel] = useState('Intermediário');
+  const [dias, setDias] = useState(4);
+  const [meta, setMeta] = useState('Construção de Base Aeróbica (Zona 2)');
+  const [availableMetas, setAvailableMetas] = useState<string[]>(OBJETIVOS_PADRAO);
   const [saving, setSaving] = useState(false);
+
+  // Sync with profile whenever modal opens or profile changes
+  useEffect(() => {
+    if (!profile) return;
+
+    const userSports = profile.esportes_ativos?.length ? profile.esportes_ativos : ['Corrida de Rua'];
+    const matched = MODALIDADES_DISPONIVEIS.filter((item) => isSportMatching(item, userSports)).map(
+      (item) => item.id
+    );
+    setSelectedIds(matched.length ? matched : ['corrida']);
+
+    setNivel(profile.nivel_experiencia || 'Intermediário');
+    setDias(profile.dias_disponiveis || 4);
+
+    const currentGoal = profile.objetivo_principal || OBJETIVOS_PADRAO[0];
+    if (!OBJETIVOS_PADRAO.includes(currentGoal)) {
+      setAvailableMetas([currentGoal, ...OBJETIVOS_PADRAO]);
+    } else {
+      setAvailableMetas(OBJETIVOS_PADRAO);
+    }
+    setMeta(currentGoal);
+  }, [profile, isOpen]);
 
   if (!isOpen) return null;
 
-  const toggleSport = (sport: string) => {
-    if (esportes.includes(sport)) {
-      if (esportes.length === 1) return; // manter ao menos 1
-      setEsportes(esportes.filter((s) => s !== sport));
+  const toggleSport = (id: string) => {
+    if (selectedIds.includes(id)) {
+      if (selectedIds.length === 1) {
+        showToast('Mantenha ao menos uma modalidade ativa.', 'info');
+        return;
+      }
+      setSelectedIds(selectedIds.filter((s) => s !== id));
     } else {
-      setEsportes([...esportes, sport]);
+      setSelectedIds([...selectedIds, id]);
     }
   };
 
@@ -61,18 +102,26 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
     e.preventDefault();
     setSaving(true);
     try {
+      // Map selected IDs back to standard labels
+      const esportesFinal = MODALIDADES_DISPONIVEIS.filter((item) =>
+        selectedIds.includes(item.id)
+      ).map((item) => item.label);
+
       const ok = await updateProfile({
-        esportes_ativos: esportes,
+        esportes_ativos: esportesFinal.length ? esportesFinal : ['Corrida de Rua'],
         nivel_experiencia: nivel,
         dias_disponiveis: dias,
         objetivo_principal: meta,
       });
+
       if (ok) {
-        alert('Perfil e modalidades atualizados com sucesso!');
+        showToast('Perfil e modalidades salvos com sucesso!', 'success');
         onClose();
       } else {
-        alert('Não foi possível salvar no momento. Tente novamente.');
+        showToast('Não foi possível salvar no momento. Tente novamente.', 'error');
       }
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao atualizar perfil.', 'error');
     } finally {
       setSaving(false);
     }
@@ -112,21 +161,22 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
               Suas modalidades ativas (selecione as que pratica):
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {TODAS_MODALIDADES.map((sport) => {
-                const selected = esportes.includes(sport);
+              {MODALIDADES_DISPONIVEIS.map((sport) => {
+                const selected = selectedIds.includes(sport.id);
                 return (
                   <button
-                    key={sport}
+                    key={sport.id}
                     type="button"
-                    onClick={() => toggleSport(sport)}
-                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                    onClick={() => toggleSport(sport.id)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 ${
                       selected
                         ? 'bg-[#11C76F] text-white border-[#11C76F] shadow-xs'
                         : 'bg-slate-50 dark:bg-[#1c1c1c] text-slate-700 dark:text-[#8E8E93] border-slate-200 dark:border-[#262626] hover:border-slate-300'
                     }`}
                   >
-                    {selected && <Check className="w-3 h-3 inline-block mr-1 -mt-0.5" />}
-                    {sport}
+                    <span>{sport.emoji}</span>
+                    <span>{sport.label}</span>
+                    {selected && <Check className="w-3.5 h-3.5 inline-block ml-0.5" />}
                   </button>
                 );
               })}
@@ -195,7 +245,7 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
               onChange={(e) => setMeta(e.target.value)}
               className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-[#1c1c1c] border border-slate-200 dark:border-[#262626] text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:border-[#11C76F]"
             >
-              {OBJETIVOS_LIST.map((m, i) => (
+              {availableMetas.map((m, i) => (
                 <option key={i} value={m}>
                   {m}
                 </option>

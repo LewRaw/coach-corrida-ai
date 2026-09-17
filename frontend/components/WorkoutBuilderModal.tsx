@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Loader2, Calendar, Target, Activity, Flame, ShieldAlert } from 'lucide-react';
 import { generateWeeklyPlanAction, PlanGenerationParams } from '@/app/actions/ai-actions';
+import { useToast } from '@/context/ToastContext';
 
 interface WorkoutBuilderModalProps {
   isOpen: boolean;
@@ -64,6 +65,7 @@ export default function WorkoutBuilderModal({
   userId,
   onSuccess,
 }: WorkoutBuilderModalProps) {
+  const { showToast } = useToast();
   const [arquiteturaId, setArquiteturaId] = useState<'corrida' | 'multi' | 'triatlo' | 'coletivos'>('corrida');
   const [objetivo, setObjetivo] = useState(OBJETIVOS_POR_ARQUITETURA['corrida'][0]);
   const [diasSemana, setDiasSemana] = useState(4);
@@ -108,14 +110,14 @@ export default function WorkoutBuilderModal({
       const res = await generateWeeklyPlanAction(params);
 
       if (res.success) {
-        alert('✨ Planilha gerada com sucesso pela IA para os próximos 7 dias!');
+        showToast('✨ Planilha gerada com sucesso pela IA para os próximos 7 dias!', 'success');
         onSuccess();
         onClose();
       } else {
-        alert(`Erro ao prescrever treinos: ${res.error || 'Tente novamente.'}`);
+        showToast(res.error || 'Erro ao prescrever treinos. Tente novamente.', 'error');
       }
     } catch (err: any) {
-      alert('Erro de conexão ao gerar planilha.');
+      showToast('Erro de conexão ao gerar planilha.', 'error');
     } finally {
       setLoading(false);
     }

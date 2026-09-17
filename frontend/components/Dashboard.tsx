@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { Schedule, Workout, QuickStats } from '@/lib/types';
+import { DEMO_SCHEDULES, DEMO_WORKOUTS } from '@/lib/supabase';
 import {
-  DEMO_SCHEDULES,
-  DEMO_WORKOUTS,
-  getSchedules,
-  getWorkouts,
-  markWorkoutCompleted,
-} from '@/lib/supabase';
+  getSchedulesServerAction,
+  getWorkoutsServerAction,
+  markWorkoutCompletedServerAction,
+} from '@/app/actions/auth-actions';
 import ProfileHeader from './ProfileHeader';
 import NextWorkoutCard from './NextWorkoutCard';
 import WeeklyProgress from './WeeklyProgress';
@@ -21,13 +21,14 @@ import { Activity, Download, Smartphone } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, profile, isDemoMode } = useAuth();
+  const { showToast } = useToast();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [selectedWorkout, setSelectedWorkout] = useState<Schedule | null>(null);
   const [currentTab, setCurrentTab] = useState<'home' | 'schedule' | 'stats'>('home');
   const [loading, setLoading] = useState(true);
 
-  // Load schedules and workouts
+  // Load schedules and workouts directly via Server Actions (Bypassing browser RLS)
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -35,27 +36,33 @@ export default function Dashboard() {
         setSchedules(DEMO_SCHEDULES);
         setWorkouts(DEMO_WORKOUTS);
       } else {
-        const [fetchedSchedules, fetchedWorkouts] = await Promise.all([
-          getSchedules(user.id),
-          getWorkouts(user.id),
+        const [schedRes, workRes] = await Promise.all([
+          getSchedulesServerAction(user.id),
+          getWorkoutsServerAction(user.id),
         ]);
 
-        if (fetchedSchedules.length === 0) {
+        if (schedRes.success && schedRes.schedules.length > 0) {
+          setSchedules(schedRes.schedules as Schedule[]);
+        } else if (isDemoMode) {
           setSchedules(DEMO_SCHEDULES);
         } else {
-          setSchedules(fetchedSchedules);
+          setSchedules([]);
         }
 
-        if (fetchedWorkouts.length === 0) {
+        if (workRes.success && workRes.workouts.length > 0) {
+          setWorkouts(workRes.workouts as Workout[]);
+        } else if (isDemoMode) {
           setWorkouts(DEMO_WORKOUTS);
         } else {
-          setWorkouts(fetchedWorkouts);
+          setWorkouts([]);
         }
       }
     } catch (err) {
-      console.warn('Error loading dashboard data, falling back to demo data:', err);
-      setSchedules(DEMO_SCHEDULES);
-      setWorkouts(DEMO_WORKOUTS);
+      console.warn('Error loading dashboard data, falling back:', err);
+      if (isDemoMode) {
+        setSchedules(DEMO_SCHEDULES);
+        setWorkouts(DEMO_WORKOUTS);
+      }
     } finally {
       setLoading(false);
     }
@@ -84,7 +91,7 @@ export default function Dashboard() {
     }
 
     if (!isDemoMode && user) {
-      await markWorkoutCompleted(scheduleId);
+      await markWorkoutCompletedServerAction(scheduleId, user.id);
     }
   };
 
@@ -113,9 +120,9 @@ export default function Dashboard() {
     if (profile?.auth_token) {
       const pwaUrl = `${window.location.origin}/?token=${profile.auth_token}`;
       navigator.clipboard?.writeText(pwaUrl);
-      alert(`Link de atalho permanente copiado para a área de transferência!\n\n${pwaUrl}\n\nCole no seu navegador e selecione "Adicionar à Tela de Início" para login automático.`);
+      showToast('Link de login permanente copiado para a área de transferência!', 'success');
     } else {
-      alert('Para gerar atalho com login permanente, faça login com sua conta.');
+      showToast('Faça login com sua conta para gerar o atalho permanente.', 'info');
     }
   };
 

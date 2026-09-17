@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { ToastProvider } from '@/context/ToastContext';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -50,7 +51,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen font-sans antialiased transition-colors duration-150 bg-[#F5F6F8] text-[#111827] dark:bg-[#000000] dark:text-[#FFFFFF] selection:bg-[#11C76F] selection:text-white">
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <ToastProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
 
         <script
