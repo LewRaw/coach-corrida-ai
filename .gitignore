@@ -40,14 +40,26 @@ env/
 .env
 .env.*
 *.json
+!frontend/**/*.json
+!frontend/*.json
 !requirements.txt
 service_account*.json
 credentials*.json
 *.pem
 *.key
 
+# Next.js frontend dependencies & build outputs
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+frontend/npm-debug.log*
+*.tsbuildinfo
+!frontend/lib/
+
 # IDEs & OS files
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+.agents/
