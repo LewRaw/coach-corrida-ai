@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { QuickStats } from '@/lib/types';
 import { Award, Compass, LogOut, Flame, Activity, Zap, TrendingUp, Sun, Moon, ChevronDown } from 'lucide-react';
+import EditProfileModal from './EditProfileModal';
+import ChangePasswordModal from './ChangePasswordModal';
 
 interface ProfileHeaderProps {
   stats: QuickStats;
@@ -14,6 +16,8 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
   const { profile, signOut, isDemoMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   const athleteName = profile?.nome || 'Atleta';
   const experienceLevel = profile?.nivel_experiencia || 'Intermediário';
@@ -96,13 +100,31 @@ export default function ProfileHeader({ stats }: ProfileHeaderProps) {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3">
             <Compass className="w-4 h-4 text-[#11C76F] shrink-0" />
             <span className="font-semibold text-slate-900 dark:text-white">Objetivo:</span>
             <span className="truncate text-slate-600 dark:text-[#8E8E93]">{primaryGoal}</span>
           </div>
+
+          <div className="pt-2 border-t border-slate-100 dark:border-[#222222] flex items-center gap-2">
+            <button
+              onClick={() => setIsEditProfileOpen(true)}
+              className="flex-1 py-2 px-3 rounded-xl bg-[#11C76F]/10 hover:bg-[#11C76F]/20 text-[#11C76F] font-bold text-xs transition-all flex items-center justify-center gap-1.5 min-h-[38px]"
+            >
+              Ajustar Esportes & Metas
+            </button>
+            <button
+              onClick={() => setIsChangePasswordOpen(true)}
+              className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#202020] dark:hover:bg-[#282828] text-slate-600 dark:text-slate-300 font-semibold text-xs transition-all min-h-[38px]"
+            >
+              Trocar Senha
+            </button>
+          </div>
         </div>
       )}
+
+      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
+      <ChangePasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
 
       {/* Quick Stats Grid (Solid Flat PicPay Cards) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
