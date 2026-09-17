@@ -1,11 +1,20 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Coach AI - Assessoria Esportiva',
   description:
-    'Assessoria esportiva inteligente, periodização de treinos e acompanhamento de corrida de alto rendimento.',
+    'Assessoria esportiva minimalista, periodização de treinos e acompanhamento de corrida de alto rendimento.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -23,7 +32,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0284c7',
+  themeColor: '#10b981',
 };
 
 export default function RootLayout({
@@ -32,15 +41,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={plusJakarta.variable} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className="bg-background text-slate-100 min-h-screen antialiased selection:bg-primary-500 selection:text-white">
-        <AuthProvider>{children}</AuthProvider>
+      <body className="min-h-screen font-sans antialiased transition-colors duration-200 bg-slate-50 text-slate-800 dark:bg-[#0b0f0e] dark:text-slate-100 selection:bg-primary-500 selection:text-white">
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
 
         <script
           dangerouslySetInnerHTML={{

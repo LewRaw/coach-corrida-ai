@@ -14,7 +14,7 @@ export default function ChatPopup() {
   const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', content: 'Olá! Sou o seu Treinador de IA. Como posso te ajudar com os treinos hoje?' }
+    { role: 'model', content: 'Olá! Sou o seu Treinador de IA. Como posso te ajudar com os treinos hoje?' },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +58,9 @@ export default function ChatPopup() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-gradient-to-tr from-primary-600 to-brand-emerald rounded-full shadow-lg shadow-primary-500/30 flex items-center justify-center text-white hover:scale-105 transition-transform z-40 ${isOpen ? 'hidden' : 'flex'}`}
+        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-full shadow-lg shadow-emerald-600/30 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all z-40 ${
+          isOpen ? 'hidden' : 'flex'
+        }`}
         aria-label="Abrir Chat com Treinador"
       >
         <MessageCircle className="w-6 h-6" />
@@ -66,32 +68,38 @@ export default function ChatPopup() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96 sm:h-[500px] z-50 flex flex-col bg-surface border-t sm:border border-surface-border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:w-96 sm:h-[520px] z-50 flex flex-col bg-white dark:bg-[#141d18] border-t sm:border border-slate-200 dark:border-[#23312a] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 bg-surface-card border-b border-surface-border">
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#0e1411] border-b border-slate-200 dark:border-[#23312a]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-600 to-brand-emerald flex items-center justify-center text-white">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-sm shadow-emerald-500/20">
                 🤖
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Coach AI</h3>
-                <p className="text-[10px] text-emerald-400 font-medium">Online e pronto</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Coach AI</h3>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Online
+                </p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-white transition-colors">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50 dark:bg-[#0b0f0e]">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] p-3 rounded-2xl text-sm ${
+                  className={`max-w-[85%] p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                     m.role === 'user'
-                      ? 'bg-primary-600 text-white rounded-br-sm'
-                      : 'bg-surface-card border border-surface-border text-slate-200 rounded-bl-sm'
+                      ? 'bg-emerald-600 text-white rounded-br-sm shadow-sm'
+                      : 'bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-800 dark:text-slate-200 rounded-bl-sm shadow-sm'
                   }`}
                 >
                   {m.content}
@@ -100,27 +108,30 @@ export default function ChatPopup() {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] p-3 rounded-2xl text-sm bg-surface-card border border-surface-border text-slate-400 rounded-bl-sm flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Digitando...
+                <div className="max-w-[85%] p-3 rounded-2xl text-xs bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] text-slate-400 rounded-bl-sm flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" /> O treinador está pensando...
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <form onSubmit={handleSend} className="p-3 bg-surface-card border-t border-surface-border flex items-center gap-2">
+          {/* Input Form */}
+          <form
+            onSubmit={handleSend}
+            className="p-3 bg-white dark:bg-[#0e1411] border-t border-slate-200 dark:border-[#23312a] flex items-center gap-2"
+          >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Digite sua mensagem..."
-              className="flex-1 bg-background border border-surface-border rounded-full px-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-primary-500"
+              placeholder="Pergunte ao treinador..."
+              className="flex-1 bg-slate-100 dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-full px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
               <Send className="w-4 h-4" />
             </button>

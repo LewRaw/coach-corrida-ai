@@ -2,17 +2,17 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Activity, Lock, Mail, User as UserIcon, ArrowRight, Sparkles } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
+import { Activity, Lock, Mail, User as UserIcon, ArrowRight, Sparkles, Sun, Moon } from 'lucide-react';
 
 export default function AuthModal() {
   const { signIn, signUp, setDemoMode } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [tab, setTab] = useState<'login' | 'register'>('login');
-  
-  // Login form state
+
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Register form state
   const [regNome, setRegNome] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -75,31 +75,42 @@ export default function AuthModal() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md bg-surface border border-surface-border rounded-2xl p-6 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-[#0b0f0e] transition-colors duration-200">
+      <div className="w-full max-w-sm bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-3xl p-6 sm:p-7 shadow-xl">
+        {/* Top right theme switch */}
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={toggleTheme}
+            aria-label="Alternar tema"
+            className="p-2 rounded-2xl bg-slate-100 dark:bg-[#1a2520] text-slate-500 dark:text-slate-400 hover:text-emerald-500 transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+          </button>
+        </div>
+
         {/* App Branding */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary-600 to-brand-emerald flex items-center justify-center shadow-lg mb-3">
-            <Activity className="w-8 h-8 text-white" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-3 text-white">
+            <Activity className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Coach AI</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Assessoria Esportiva Inteligente & Periodização
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Coach AI</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Assessoria Esportiva & Periodização Inteligente
           </p>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex rounded-xl bg-surface-card p-1 mb-5 border border-surface-border">
+        <div className="flex rounded-full bg-slate-100 dark:bg-[#0e1411] p-1 mb-5 border border-slate-200 dark:border-[#1d2922]">
           <button
             type="button"
             onClick={() => {
               setTab('login');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all min-h-[44px] ${
+            className={`flex-1 py-2 text-xs font-bold rounded-full transition-all min-h-[38px] ${
               tab === 'login'
-                ? 'bg-primary-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             Entrar
@@ -110,10 +121,10 @@ export default function AuthModal() {
               setTab('register');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all min-h-[44px] ${
+            className={`flex-1 py-2 text-xs font-bold rounded-full transition-all min-h-[38px] ${
               tab === 'register'
-                ? 'bg-primary-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             Criar Conta
@@ -122,25 +133,25 @@ export default function AuthModal() {
 
         {/* Error / Info messages */}
         {errorMessage && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs leading-relaxed">
+          <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-rose-700 dark:text-rose-300 text-xs leading-relaxed">
             {errorMessage}
           </div>
         )}
         {infoMessage && (
-          <div className="mb-4 p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs leading-relaxed">
+          <div className="mb-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 text-xs leading-relaxed">
             {infoMessage}
           </div>
         )}
 
         {/* Login Form */}
         {tab === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 E-mail
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -149,17 +160,17 @@ export default function AuthModal() {
                   placeholder="seu@email.com"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-3 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Senha
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -168,7 +179,7 @@ export default function AuthModal() {
                   placeholder="Sua senha secreta"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-3 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
@@ -176,7 +187,7 @@ export default function AuthModal() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-600 text-white font-bold rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 min-h-[48px] disabled:opacity-50"
+              className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 min-h-[46px] disabled:opacity-50 active:scale-[0.99]"
             >
               {submitting ? 'Verificando...' : 'Acessar Treinos'}
               <ArrowRight className="w-4 h-4" />
@@ -186,13 +197,13 @@ export default function AuthModal() {
 
         {/* Register Form */}
         {tab === 'register' && (
-          <form onSubmit={handleRegister} className="space-y-3.5">
+          <form onSubmit={handleRegister} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Nome Completo
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <UserIcon className="w-4 h-4" />
                 </div>
                 <input
@@ -201,17 +212,17 @@ export default function AuthModal() {
                   placeholder="Seu nome"
                   value={regNome}
                   onChange={(e) => setRegNome(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 E-mail
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -220,17 +231,17 @@ export default function AuthModal() {
                   placeholder="seu@email.com"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Senha (mínimo 6 caracteres)
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -239,17 +250,17 @@ export default function AuthModal() {
                   placeholder="Escolha uma senha"
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Confirmar Senha
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -258,7 +269,7 @@ export default function AuthModal() {
                   placeholder="Repita a senha"
                   value={regConfirmPassword}
                   onChange={(e) => setRegConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 bg-surface-card border border-surface-border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 min-h-[44px]"
+                  className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-[#0e1411] border border-slate-200 dark:border-[#23312a] rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
                 />
               </div>
             </div>
@@ -266,7 +277,7 @@ export default function AuthModal() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-brand-emerald to-primary-600 hover:from-primary-600 hover:to-brand-emerald text-white font-bold rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 min-h-[48px] disabled:opacity-50"
+              className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl text-sm transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 min-h-[46px] disabled:opacity-50 active:scale-[0.99]"
             >
               {submitting ? 'Cadastrando...' : 'Cadastrar Atleta'}
               <ArrowRight className="w-4 h-4" />
@@ -275,18 +286,15 @@ export default function AuthModal() {
         )}
 
         {/* Demo / Offline Preview Mode */}
-        <div className="mt-6 pt-4 border-t border-surface-border text-center">
+        <div className="mt-5 pt-3 border-t border-slate-200 dark:border-[#23312a] text-center">
           <button
             type="button"
             onClick={() => setDemoMode(true)}
-            className="w-full py-2.5 px-3 bg-surface-card hover:bg-surface-card-hover border border-primary-500/30 text-primary-100 rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-2 min-h-[44px]"
+            className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-[#0e1411] dark:hover:bg-[#141d18] border border-slate-200 dark:border-[#1d2922] text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-semibold transition-colors flex items-center justify-center gap-2 min-h-[42px]"
           >
-            <Sparkles className="w-4 h-4 text-brand-emerald" />
+            <Sparkles className="w-4 h-4 text-emerald-500" />
             Acessar Atleta Demo (Visualização Rápida)
           </button>
-          <p className="text-[11px] text-slate-500 mt-2">
-            Permite testar o painel PWA e registrar conclusão de treinos imediatamente.
-          </p>
         </div>
       </div>
     </div>

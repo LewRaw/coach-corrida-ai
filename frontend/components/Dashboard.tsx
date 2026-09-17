@@ -17,10 +17,10 @@ import WorkoutScheduleList from './WorkoutScheduleList';
 import WorkoutDetailModal from './WorkoutDetailModal';
 import BottomNav from './BottomNav';
 import ChatPopup from './ChatPopup';
-import { Award, Zap, History, Flame, Activity } from 'lucide-react';
+import { Activity, Download, Smartphone } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user, isDemoMode } = useAuth();
+  const { user, profile, isDemoMode } = useAuth();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [selectedWorkout, setSelectedWorkout] = useState<Schedule | null>(null);
@@ -41,7 +41,6 @@ export default function Dashboard() {
         ]);
 
         if (fetchedSchedules.length === 0) {
-          // Fallback to sample microcycle if user has none yet
           setSchedules(DEMO_SCHEDULES);
         } else {
           setSchedules(fetchedSchedules);
@@ -70,7 +69,6 @@ export default function Dashboard() {
   const handleCompleteWorkout = async (scheduleId: string) => {
     const timestamp = new Date().toISOString();
 
-    // Optimistic / local update
     setSchedules((prev) =>
       prev.map((s) =>
         s.id === scheduleId
@@ -111,37 +109,51 @@ export default function Dashboard() {
     adherencePercent,
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">Carregando painel do atleta...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleCreateShortcut = () => {
+    if (profile?.auth_token) {
+      const pwaUrl = `${window.location.origin}/?token=${profile.auth_token}`;
+      navigator.clipboard?.writeText(pwaUrl);
+      alert(`Link de atalho permanente copiado para a área de transferência!\n\n${pwaUrl}\n\nCole no seu navegador e selecione "Adicionar à Tela de Início" para login automático.`);
+    } else {
+      alert('Para gerar atalho com login permanente, faça login com sua conta.');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background text-slate-100 pb-24">
-      <main className="max-w-md mx-auto px-4 space-y-5">
-        {/* Profile Header and Quick Stats */}
-        <ProfileHeader stats={quickStats} />
+    <div className="max-w-md mx-auto min-h-screen pb-28 pt-2 px-3.5 transition-colors duration-200">
+      {/* PWA Banner */}
+      <div className="mb-3 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-3 flex items-center justify-between gap-2.5 shadow-sm">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Smartphone className="w-4 h-4" />
+          </div>
+          <p className="text-[11px] text-emerald-800 dark:text-emerald-200/90 leading-tight font-medium truncate">
+            Instale o app na sua tela de início
+          </p>
+        </div>
+        <button
+          onClick={handleCreateShortcut}
+          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 shadow-sm"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Atalho
+        </button>
+      </div>
 
+      <ProfileHeader stats={quickStats} />
+
+      <main className="space-y-4 mt-3">
         {/* Tab 1: Home View */}
         {currentTab === 'home' && (
           <>
-            {/* Next Workout Spotlight Hero Card */}
             <NextWorkoutCard
               schedules={schedules}
               onCompleteWorkout={handleCompleteWorkout}
               onSelectWorkout={(w) => setSelectedWorkout(w)}
             />
 
-            {/* Weekly Adherence Progress */}
             <WeeklyProgress schedules={schedules} />
 
-            {/* Schedule List */}
             <WorkoutScheduleList
               schedules={schedules}
               onCompleteWorkout={handleCompleteWorkout}
@@ -168,42 +180,42 @@ export default function Dashboard() {
 
         {/* Tab 3: Evolução / Stats View */}
         {currentTab === 'stats' && (
-          <section className="space-y-4">
-            <div className="bg-surface-card border border-surface-border rounded-2xl p-5">
-              <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary-400" />
+          <section className="space-y-3">
+            <div className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-3xl p-5 shadow-sm">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-500" />
                 Histórico & Evolução Física
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                Registro detalhado das sessões de corrida executadas e evolução aeróbica calculada pela assessoria.
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                Sessões de corrida executadas e evolução aeróbica calculada pela assessoria.
               </p>
 
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-surface p-3 rounded-xl border border-surface-border text-center">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Volume Total</div>
-                  <div className="text-xl font-black text-white">{quickStats.totalDistanceKm.toFixed(1)} km</div>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="bg-slate-50 dark:bg-[#0e1411] p-3 rounded-2xl border border-slate-100 dark:border-[#1d2922] text-center">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Volume Total</div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white">{quickStats.totalDistanceKm.toFixed(1)} km</div>
                 </div>
-                <div className="bg-surface p-3 rounded-xl border border-surface-border text-center">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Pace Médio</div>
-                  <div className="text-xl font-black text-white">{quickStats.avgPace}/km</div>
+                <div className="bg-slate-50 dark:bg-[#0e1411] p-3 rounded-2xl border border-slate-100 dark:border-[#1d2922] text-center">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Pace Médio</div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white">{quickStats.avgPace}/km</div>
                 </div>
               </div>
 
-              <div className="space-y-2.5">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Últimos Treinos Registrados
                 </h4>
                 {workouts.map((w) => (
                   <div
                     key={w.id}
-                    className="p-3 rounded-xl bg-surface border border-surface-border flex items-center justify-between text-xs"
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-[#0e1411] border border-slate-100 dark:border-[#1d2922] flex items-center justify-between text-xs"
                   >
                     <div>
-                      <div className="font-bold text-white">{w.data}</div>
+                      <div className="font-bold text-slate-900 dark:text-white">{w.data}</div>
                       <div className="text-slate-400 text-[11px]">{w.zona_predominante || 'Rodagem'}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-primary-400">{w.distancia_km.toFixed(1)} km</div>
+                      <div className="font-bold text-emerald-600 dark:text-emerald-400">{Number(w.distancia_km).toFixed(1)} km</div>
                       <div className="text-slate-400 text-[11px]">{w.pace_medio}/km</div>
                     </div>
                   </div>
@@ -214,7 +226,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Workout Detail Modal / Drawer */}
+      {/* Workout Detail Modal */}
       <WorkoutDetailModal
         workout={selectedWorkout}
         onClose={() => setSelectedWorkout(null)}

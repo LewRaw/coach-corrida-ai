@@ -1,15 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Schedule, WeeklyStats } from '@/lib/types';
-import { CheckCircle2, Clock3, Route, Percent } from 'lucide-react';
+import { Schedule } from '@/lib/types';
+import { CheckCircle2, Clock3, Route } from 'lucide-react';
 
 interface WeeklyProgressProps {
   schedules: Schedule[];
 }
 
 export default function WeeklyProgress({ schedules }: WeeklyProgressProps) {
-  // Compute metrics
   const totalWorkouts = schedules.length;
   const completedWorkouts = schedules.filter((s) => s.status === 'Concluído').length;
   const pendingWorkouts = totalWorkouts - completedWorkouts;
@@ -26,53 +25,53 @@ export default function WeeklyProgress({ schedules }: WeeklyProgressProps) {
     totalWorkouts > 0 ? Math.round((completedWorkouts / totalWorkouts) * 100) : 0;
 
   return (
-    <section className="bg-surface-card border border-surface-border rounded-2xl p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+    <section className="bg-white dark:bg-[#141d18] border border-slate-200 dark:border-[#23312a] rounded-3xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-2.5">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
           Progresso Semanal
         </h3>
-        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary-500/15 text-primary-100 border border-primary-500/20">
+        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
           {adherencePercent}% Concluído
         </span>
       </div>
 
       {/* Visual Progress Bar */}
-      <div className="w-full bg-background rounded-full h-3 mb-4 overflow-hidden border border-surface-border/50">
+      <div className="w-full bg-slate-100 dark:bg-[#0e1411] rounded-full h-2.5 mb-3 overflow-hidden">
         <div
-          className="bg-gradient-to-r from-primary-600 via-primary-500 to-brand-emerald h-full rounded-full transition-all duration-500 shadow-sm"
+          className="bg-emerald-500 h-full rounded-full transition-all duration-500"
           style={{ width: `${Math.min(100, Math.max(0, adherencePercent))}%` }}
         />
       </div>
 
       {/* Progress Cards */}
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="bg-surface/60 border border-surface-border rounded-xl p-2.5">
-          <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald" />
-            <span className="text-[10px] uppercase font-semibold">Feitos</span>
+        <div className="bg-slate-50 dark:bg-[#0e1411] border border-slate-100 dark:border-[#1d2922] rounded-2xl p-2.5">
+          <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+            <span className="text-[10px] font-semibold uppercase">Feitos</span>
           </div>
-          <div className="text-sm font-extrabold text-white">
+          <div className="text-sm font-extrabold text-slate-900 dark:text-white">
             {completedWorkouts} <span className="text-slate-400 font-normal text-xs">/ {totalWorkouts}</span>
           </div>
         </div>
 
-        <div className="bg-surface/60 border border-surface-border rounded-xl p-2.5">
-          <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
-            <Clock3 className="w-3.5 h-3.5 text-brand-amber" />
-            <span className="text-[10px] uppercase font-semibold">Pendentes</span>
+        <div className="bg-slate-50 dark:bg-[#0e1411] border border-slate-100 dark:border-[#1d2922] rounded-2xl p-2.5">
+          <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+            <Clock3 className="w-3 h-3 text-amber-500" />
+            <span className="text-[10px] font-semibold uppercase">Restam</span>
           </div>
-          <div className="text-sm font-extrabold text-white">
-            {pendingWorkouts} <span className="text-slate-400 font-normal text-xs">sessões</span>
+          <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+            {pendingWorkouts} <span className="text-slate-400 font-normal text-xs">treinos</span>
           </div>
         </div>
 
-        <div className="bg-surface/60 border border-surface-border rounded-xl p-2.5">
-          <div className="flex items-center justify-center gap-1 text-slate-400 mb-1">
-            <Route className="w-3.5 h-3.5 text-primary-400" />
-            <span className="text-[10px] uppercase font-semibold">Volume</span>
+        <div className="bg-slate-50 dark:bg-[#0e1411] border border-slate-100 dark:border-[#1d2922] rounded-2xl p-2.5">
+          <div className="flex items-center justify-center gap-1 text-slate-400 mb-0.5">
+            <Route className="w-3 h-3 text-teal-500" />
+            <span className="text-[10px] font-semibold uppercase">Volume</span>
           </div>
-          <div className="text-sm font-extrabold text-white">
-            {totalDistanceCompleted.toFixed(1)} <span className="text-slate-400 font-normal text-[11px]">/ {totalDistancePlanned.toFixed(0)}k</span>
+          <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+            {totalDistanceCompleted.toFixed(1)} <span className="text-slate-400 font-normal text-[10px]">/{totalDistancePlanned.toFixed(0)}k</span>
           </div>
         </div>
       </div>
